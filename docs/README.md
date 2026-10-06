@@ -30,5 +30,6 @@
 | Step | 内容 | ドキュメント |
 |---|---|---|
 | Step 1 | FastAPI バックエンドの土台構築 | [step1-backend-foundation.md](demo2/step1-backend-foundation.md) |
+| Step 2 | SQLAlchemy + SQLite + Alembic による DB 層 | [step2-database-layer.md](demo2/step2-database-layer.md) |
 
 Demo 1（Next.js + モックデータ）の内容は [frontend/README.md](../frontend/README.md) にまとめています。
