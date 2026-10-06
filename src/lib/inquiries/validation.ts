@@ -119,3 +119,31 @@ export function parseCreateInquiryInput(
 
   return { success: true, data: { title, category, description } };
 }
+
+/** ステータス変更フォーム（useActionState）と Server Action の間でやり取りする状態 */
+export type UpdateInquiryStatusFormState = {
+  message?: string;
+  error?: string;
+};
+
+export type InquiryStatusUpdateParseResult =
+  | { success: true; id: string; status: InquiryStatus }
+  | { success: false; error: string };
+
+/**
+ * ステータス変更フォームの FormData（hidden の id と status）を検証する。
+ * id の存在確認は repository の戻り値で行う。
+ */
+export function parseInquiryStatusUpdate(
+  formData: FormData,
+): InquiryStatusUpdateParseResult {
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) {
+    return { success: false, error: "問い合わせが見つかりません" };
+  }
+  const status = formData.get("status");
+  if (!isInquiryStatus(status)) {
+    return { success: false, error: "ステータスを選択してください" };
+  }
+  return { success: true, id, status };
+}

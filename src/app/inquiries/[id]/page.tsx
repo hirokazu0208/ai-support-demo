@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { InquiryDetail } from "@/components/inquiries/InquiryDetail";
+import { InquiryStatusForm } from "@/components/inquiries/InquiryStatusForm";
 import { getInquiryById } from "@/lib/inquiries/repository";
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default async function InquiryDetailPage({
         ← 一覧へ戻る
       </Link>
       <InquiryDetail inquiry={inquiry} />
+      <InquiryStatusForm id={inquiry.id} currentStatus={inquiry.status} />
     </div>
   );
 }
