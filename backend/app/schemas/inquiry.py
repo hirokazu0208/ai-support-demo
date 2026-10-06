@@ -1,4 +1,13 @@
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from typing import Annotated
+
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 from pydantic.alias_generators import to_camel
 
 from app.models import InquiryCategory, InquiryStatus
@@ -39,3 +48,35 @@ class InquiryListParams(BaseModel):
         if value is None:
             return None
         return value.strip() or None
+
+
+# 前後の空白を除いてから長さを検証する。長さは Python の len()（コードポイント単位）で数え、
+# Demo 1 の validation.ts（countChars）と同じ上限にそろえる
+InquiryTitle = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
+InquiryDescription = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
+]
+
+
+class InquiryCreate(BaseModel):
+    """POST /inquiries のリクエスト。
+
+    id・status・createdAt・updatedAt はサーバー側で決めるため受け付けない（未定義の項目は 422）。
+    入力も camelCase のみ受け付ける（populate_by_name は付けない）。
+    """
+
+    model_config = ConfigDict(extra="forbid", alias_generator=to_camel)
+
+    title: InquiryTitle
+    description: InquiryDescription
+    category: InquiryCategory
+
+
+class InquiryStatusUpdate(BaseModel):
+    """PATCH /inquiries/{id}/status のリクエスト。status 以外は受け付けない。"""
+
+    model_config = ConfigDict(extra="forbid", alias_generator=to_camel)
+
+    status: InquiryStatus

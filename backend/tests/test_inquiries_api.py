@@ -220,7 +220,8 @@ def test_openapi_describes_inquiry_endpoints(client: TestClient) -> None:
     schema = client.get("/openapi.json").json()
 
     assert {"/inquiries", "/inquiries/{inquiry_id}"} <= set(schema["paths"])
-    assert set(schema["paths"]["/inquiries"]) == {"get"}
+    # POST /inquiries は Step 4 で追加（書き込み API のテストは test_inquiries_write_api.py）
+    assert set(schema["paths"]["/inquiries"]) == {"get", "post"}
     assert set(schema["paths"]["/inquiries/{inquiry_id}"]) == {"get"}
 
     list_params = {p["name"] for p in schema["paths"]["/inquiries"]["get"]["parameters"]}

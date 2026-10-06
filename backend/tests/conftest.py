@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_DIR
@@ -95,3 +95,27 @@ def client(migrated_engine: Engine) -> Iterator[TestClient]:
     app.dependency_overrides[get_db] = _get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+FailWrites = Callable[[str], None]
+
+
+@pytest.fixture
+def fail_writes(migrated_engine: Engine) -> FailWrites:
+    """inquiries への INSERT / UPDATE を DB 側で失敗させるトリガーを追加する。
+
+    モックではなく本物の DB エラー（sqlite3.IntegrityError: forced failure）で
+    commit の失敗を再現するため。テストごとの一時 DB にのみ作成する。
+    """
+
+    def _install(operation: str) -> None:
+        assert operation in {"INSERT", "UPDATE"}
+        with migrated_engine.begin() as connection:
+            connection.execute(
+                text(
+                    f"CREATE TRIGGER fail_{operation.lower()} BEFORE {operation} "
+                    "ON inquiries BEGIN SELECT RAISE(ABORT, 'forced failure'); END"
+                )
+            )
+
+    return _install
