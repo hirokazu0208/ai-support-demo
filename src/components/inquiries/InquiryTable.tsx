@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatDateTime } from "@/lib/inquiries/format";
 import { INQUIRY_CATEGORY_LABELS } from "@/lib/inquiries/types";
 import type { Inquiry } from "@/lib/inquiries/types";
@@ -34,8 +35,14 @@ export function InquiryTable({ inquiries }: { inquiries: Inquiry[] }) {
         <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {inquiries.map((inquiry) => (
             <tr key={inquiry.id}>
-              {/* Step 3 で詳細画面（/inquiries/{id}）へのリンクにする */}
-              <td className="px-4 py-3 font-medium">{inquiry.title}</td>
+              <td className="px-4 py-3 font-medium">
+                <Link
+                  href={`/inquiries/${inquiry.id}`}
+                  className="hover:underline"
+                >
+                  {inquiry.title}
+                </Link>
+              </td>
               <td className="whitespace-nowrap px-4 py-3">
                 {INQUIRY_CATEGORY_LABELS[inquiry.category]}
               </td>
