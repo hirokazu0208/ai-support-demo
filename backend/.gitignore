@@ -16,3 +16,6 @@ __pycache__/
 # ローカルDB（Demo 2 以降で使用）
 *.db
 *.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
