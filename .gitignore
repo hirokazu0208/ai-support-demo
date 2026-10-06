@@ -1,0 +1,9 @@
+# リポジトリ共通（frontend / backend 固有の除外は各ディレクトリの .gitignore で管理）
+
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.idea/
+.vscode/
