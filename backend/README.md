@@ -2,12 +2,13 @@
 
 問い合わせ管理アプリの REST API です（Python / FastAPI）。Demo 2 で段階的に構築しています。
 
-現在の到達点は **Demo 2 Step 2（SQLAlchemy + SQLite + Alembic による DB 層）** です。問い合わせテーブルと migration・seed、ヘルスチェック（`/health`・`/health/ready`）を提供します。問い合わせの API（`/inquiries`）はまだありません。
+現在の到達点は **Demo 2 Step 3（問い合わせの読み取り API）** です。問い合わせの一覧・詳細の取得（`GET /inquiries`、`GET /inquiries/{id}`）、ヘルスチェック（`/health`・`/health/ready`）を提供します。登録・ステータス変更の API はまだありません。
 
 設計の詳細は以下を参照してください。
 
 - [Step 1：FastAPI の土台構築](../docs/demo2/step1-backend-foundation.md)
 - [Step 2：DB 層](../docs/demo2/step2-database-layer.md)
+- [Step 3：読み取り API](../docs/demo2/step3-read-api.md)
 
 ## 使用技術
 
@@ -38,8 +39,13 @@ backend/
 │   │   └── seed_data.py   # Demo 1 の問い合わせ 8 件
 │   ├── models/
 │   │   └── inquiry.py     # Inquiry モデル・InquiryCategory・InquiryStatus
+│   ├── schemas/
+│   │   └── inquiry.py     # API のリクエスト / レスポンス（JSON は camelCase）
+│   ├── repositories/
+│   │   └── inquiries.py   # 問い合わせのデータアクセス（SQL の組み立て）
 │   └── routers/
-│       └── health.py      # GET /health, GET /health/ready
+│       ├── health.py      # GET /health, GET /health/ready
+│       └── inquiries.py   # GET /inquiries, GET /inquiries/{id}
 ├── data/                  # SQLite の DB ファイル（app.db は Git 管理対象外）
 ├── tests/
 ├── requirements.txt       # 実行時の依存
@@ -81,6 +87,20 @@ uvicorn app.main:app --reload --port 8000
 | <http://localhost:8000/health> | liveness。プロセスが応答できれば `{"status":"ok"}`（DB は確認しない） |
 | <http://localhost:8000/health/ready> | readiness。DB に接続できれば 200 `{"status":"ok"}`、できなければ 503 `{"status":"unavailable"}` |
 | <http://localhost:8000/docs> | API ドキュメント（Swagger UI） |
+
+## API
+
+| メソッド・パス | 内容 |
+|---|---|
+| `GET /inquiries` | 一覧。作成日時の新しい順（同時刻は id の降順）。`q`（タイトル・本文の部分一致、大文字小文字を区別しない、最大 200 文字）と `status`（`OPEN` / `IN_PROGRESS` / `CLOSED`）で絞り込み。空白だけの `q` は指定なし扱い |
+| `GET /inquiries/{id}` | 詳細。存在しない id は 404、整数でない・範囲外（1〜2147483647 以外）の id は 422 |
+
+レスポンスの JSON は camelCase（`createdAt`・`updatedAt`）、日時は UTC の ISO 8601（例：`2026-09-28T00:15:00Z`）です。不正な `status`・定義していないクエリパラメータは 422 になります。
+
+```bash
+curl -s "localhost:8000/inquiries?q=vpn&status=OPEN"
+curl -s localhost:8000/inquiries/1
+```
 
 ## テスト
 
