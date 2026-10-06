@@ -16,4 +16,4 @@
 | Demo | 内容 | 状態 |
 |---|---|---|
 | Demo 1 | Next.js の UI と、インメモリのモックデータによる問い合わせ管理 | 完了（タグ `demo-1`） |
-| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中（Step 3：問い合わせの読み取り API まで完了） |
+| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中（Step 4：問い合わせの書き込み API まで完了） |

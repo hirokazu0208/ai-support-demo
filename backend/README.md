@@ -2,13 +2,14 @@
 
 問い合わせ管理アプリの REST API です（Python / FastAPI）。Demo 2 で段階的に構築しています。
 
-現在の到達点は **Demo 2 Step 3（問い合わせの読み取り API）** です。問い合わせの一覧・詳細の取得（`GET /inquiries`、`GET /inquiries/{id}`）、ヘルスチェック（`/health`・`/health/ready`）を提供します。登録・ステータス変更の API はまだありません。
+現在の到達点は **Demo 2 Step 4（問い合わせの書き込み API）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更と、ヘルスチェック（`/health`・`/health/ready`）を提供します。frontend との接続はまだ行っていません。
 
 設計の詳細は以下を参照してください。
 
 - [Step 1：FastAPI の土台構築](../docs/demo2/step1-backend-foundation.md)
 - [Step 2：DB 層](../docs/demo2/step2-database-layer.md)
 - [Step 3：読み取り API](../docs/demo2/step3-read-api.md)
+- [Step 4：書き込み API](../docs/demo2/step4-write-api.md)
 
 ## 使用技術
 
@@ -42,10 +43,10 @@ backend/
 │   ├── schemas/
 │   │   └── inquiry.py     # API のリクエスト / レスポンス（JSON は camelCase）
 │   ├── repositories/
-│   │   └── inquiries.py   # 問い合わせのデータアクセス（SQL の組み立て）
+│   │   └── inquiries.py   # 問い合わせのデータアクセス（SQL の組み立て・書き込みの commit / rollback）
 │   └── routers/
 │       ├── health.py      # GET /health, GET /health/ready
-│       └── inquiries.py   # GET /inquiries, GET /inquiries/{id}
+│       └── inquiries.py   # GET/POST /inquiries, GET /inquiries/{id}, PATCH /inquiries/{id}/status
 ├── data/                  # SQLite の DB ファイル（app.db は Git 管理対象外）
 ├── tests/
 ├── requirements.txt       # 実行時の依存
@@ -94,13 +95,21 @@ uvicorn app.main:app --reload --port 8000
 |---|---|
 | `GET /inquiries` | 一覧。作成日時の新しい順（同時刻は id の降順）。`q`（タイトル・本文の部分一致、大文字小文字を区別しない、最大 200 文字）と `status`（`OPEN` / `IN_PROGRESS` / `CLOSED`）で絞り込み。空白だけの `q` は指定なし扱い |
 | `GET /inquiries/{id}` | 詳細。存在しない id は 404、整数でない・範囲外（1〜2147483647 以外）の id は 422 |
+| `POST /inquiries` | 登録。本文は `title`（前後の空白を除いて 1〜100 文字）、`description`（同 1〜2000 文字）、`category`。status は `OPEN` 固定、`createdAt` と `updatedAt` は同じ時刻。成功時は 201 と `Location: /inquiries/{id}` |
+| `PATCH /inquiries/{id}/status` | ステータス変更。本文は `status` のみ。変更した場合だけ `updatedAt` を更新し、同じ status なら何も更新せずに 200 を返す。存在しない id は 404 |
 
-レスポンスの JSON は camelCase（`createdAt`・`updatedAt`）、日時は UTC の ISO 8601（例：`2026-09-28T00:15:00Z`）です。不正な `status`・定義していないクエリパラメータは 422 になります。
+レスポンスの JSON は camelCase（`createdAt`・`updatedAt`）、日時は UTC の ISO 8601（例：`2026-09-28T00:15:00Z`）です。不正な `status`・`category`、定義していないクエリパラメータ・本文の項目（`id`・`status`・`createdAt` などのサーバーが決める項目を含む）は 422 になります。
 
 ```bash
 curl -s "localhost:8000/inquiries?q=vpn&status=OPEN"
 curl -s localhost:8000/inquiries/1
+curl -s -X POST localhost:8000/inquiries -H "Content-Type: application/json" \
+  -d '{"title":"プリンタが動かない","description":"3階の複合機","category":"OTHER"}'
+curl -s -X PATCH localhost:8000/inquiries/9/status -H "Content-Type: application/json" \
+  -d '{"status":"IN_PROGRESS"}'
 ```
+
+POST・PATCH は DB に書き込みます。開発用の `data/app.db` を変更したくない場合は、`DATABASE_URL` を一時ファイルに向けてから `alembic upgrade head` と seed を実行してください。
 
 ## テスト
 
