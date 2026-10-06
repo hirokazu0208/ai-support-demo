@@ -8,11 +8,12 @@
 | ディレクトリ | 内容 |
 |---|---|
 | [`frontend/`](frontend/) | Next.js 16（App Router）による画面。詳細は [frontend/README.md](frontend/README.md) |
-| `backend/` | Python / FastAPI による REST API（Demo 2 で追加予定） |
+| [`backend/`](backend/) | Python / FastAPI による REST API（Demo 2 で構築中）。詳細は [backend/README.md](backend/README.md) |
+| [`docs/`](docs/) | 承認済みの設計・技術判断・検証結果の記録。方針と目次は [docs/README.md](docs/README.md) |
 
 ## Demo の段階
 
 | Demo | 内容 | 状態 |
 |---|---|---|
 | Demo 1 | Next.js の UI と、インメモリのモックデータによる問い合わせ管理 | 完了（タグ `demo-1`） |
-| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中 |
+| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中（Step 1：FastAPI の土台構築まで完了） |
