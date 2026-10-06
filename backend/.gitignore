@@ -1,0 +1,18 @@
+# 仮想環境
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# テスト
+.pytest_cache/
+
+# 環境変数（サンプルは管理対象）
+.env
+.env.*
+!.env.example
+
+# ローカルDB（Demo 2 以降で使用）
+*.db
+*.sqlite3
