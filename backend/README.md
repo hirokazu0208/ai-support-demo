@@ -2,7 +2,7 @@
 
 問い合わせ管理アプリの REST API です（Python / FastAPI）。Demo 2 で段階的に構築しています。
 
-現在の到達点は **Demo 2 Step 6B（Docker Compose での PostgreSQL 化）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更と、ヘルスチェック（`/health`・`/health/ready`）を提供し、frontend（Next.js）のサーバー側から呼び出されます。DB は `DATABASE_URL` で SQLite / PostgreSQL を切り替えます。
+現在の到達点は **Demo 3 Step 1（FAQ のデータと検索 API）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更、FAQ 検索（AI Agent の FAQ 検索 Tool の土台）と、ヘルスチェック（`/health`・`/health/ready`）を提供し、frontend（Next.js）のサーバー側から呼び出されます。DB は `DATABASE_URL` で SQLite / PostgreSQL を切り替えます。
 
 設計の詳細は以下を参照してください。
 
@@ -12,6 +12,7 @@
 - [Step 4：書き込み API](../docs/demo2/step4-write-api.md)
 - [Step 6A：Docker 化](../docs/demo2/step6a-docker.md)
 - [Step 6B：PostgreSQL 化](../docs/demo2/step6b-postgresql.md)
+- [Demo 3 Step 1：FAQ 検索](../docs/demo3/step1-faq-search.md)
 
 ## 使用技術
 
@@ -39,16 +40,21 @@ backend/
 │   │   ├── sqlite.py      # SQLite 固有の設定（ここだけに隔離）
 │   │   ├── types.py       # UTCDateTime（UTC で保存・取得する日時型）
 │   │   ├── seed.py        # seed コマンド
-│   │   └── seed_data.py   # Demo 1 の問い合わせ 8 件
+│   │   ├── seed_data.py   # Demo 1 の問い合わせ 8 件
+│   │   └── faq_seed_data.py # FAQ 10 件
 │   ├── models/
-│   │   └── inquiry.py     # Inquiry モデル・InquiryCategory・InquiryStatus
+│   │   ├── inquiry.py     # Inquiry モデル・InquiryCategory・InquiryStatus
+│   │   └── faq.py         # Faq モデル（category は InquiryCategory を再利用）
 │   ├── schemas/
-│   │   └── inquiry.py     # API のリクエスト / レスポンス（JSON は camelCase）
+│   │   ├── inquiry.py     # API のリクエスト / レスポンス（JSON は camelCase）
+│   │   └── faq.py         # FAQ 検索の応答・クエリ
 │   ├── repositories/
-│   │   └── inquiries.py   # 問い合わせのデータアクセス（SQL の組み立て・書き込みの commit / rollback）
+│   │   ├── inquiries.py   # 問い合わせのデータアクセス（SQL の組み立て・書き込みの commit / rollback）
+│   │   └── faqs.py        # FAQ 検索（キーワード + 部分一致のスコア方式）
 │   └── routers/
 │       ├── health.py      # GET /health, GET /health/ready
-│       └── inquiries.py   # GET/POST /inquiries, GET /inquiries/{id}, PATCH /inquiries/{id}/status
+│       ├── inquiries.py   # GET/POST /inquiries, GET /inquiries/{id}, PATCH /inquiries/{id}/status
+│       └── faqs.py        # GET /faqs
 ├── data/                  # SQLite の DB ファイル（app.db は Git 管理対象外）
 ├── tests/
 ├── requirements.txt       # 実行時の依存
@@ -69,7 +75,8 @@ cp .env.example .env   # 任意。未作成の場合は既定値が使われま�
 # DB の作成（テーブルは Alembic migration で作成します）
 alembic upgrade head
 
-# Demo 1 の問い合わせ 8 件を投入（テーブルが空のときだけ投入。何度実行しても重複しません）
+# Demo 1 の問い合わせ 8 件と FAQ 10 件を投入（テーブルごとに、空のときだけ投入。何度実行しても重複しません）
+# Demo 3 より前に作成した DB では、先に alembic upgrade head で faqs テーブルを追加してください
 python -m app.db.seed
 ```
 
@@ -99,6 +106,7 @@ uvicorn app.main:app --reload --port 8000
 | `GET /inquiries/{id}` | 詳細。存在しない id は 404、整数でない・範囲外（1〜2147483647 以外）の id は 422 |
 | `POST /inquiries` | 登録。本文は `title`（前後の空白を除いて 1〜100 文字）、`description`（同 1〜2000 文字）、`category`。status は `OPEN` 固定、`createdAt` と `updatedAt` は同じ時刻。成功時は 201 と `Location: /inquiries/{id}` |
 | `PATCH /inquiries/{id}/status` | ステータス変更。本文は `status` のみ。変更した場合だけ `updatedAt` を更新し、同じ status なら何も更新せずに 200 を返す。存在しない id は 404 |
+| `GET /faqs?q=&limit=5` | FAQ 検索。キーワード + 部分一致のスコア順（同点は id 順）。`q` 未指定は id 順。`limit` は 1〜20、`q` は最大 200 文字。応答は `id`・`question`・`answer`・`category`・`score` |
 
 レスポンスの JSON は camelCase（`createdAt`・`updatedAt`）、日時は UTC の ISO 8601（例：`2026-09-28T00:15:00Z`）です。不正な `status`・`category`、定義していないクエリパラメータ・本文の項目（`id`・`status`・`createdAt` などのサーバーが決める項目を含む）は 422 になります。
 

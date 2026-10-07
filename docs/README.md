@@ -37,4 +37,10 @@
 | Step 6A | frontend / backend の Docker 化と Docker Compose（DB は SQLite） | [step6a-docker.md](demo2/step6a-docker.md) |
 | Step 6B | Docker Compose での PostgreSQL 化（SQLite / PostgreSQL の切り替え） | [step6b-postgresql.md](demo2/step6b-postgresql.md) |
 
+### Demo 3（AI 問い合わせ支援 Agent）
+
+| Step | 内容 | ドキュメント |
+|---|---|---|
+| Step 1 | FAQ のデータと検索 Tool（`faqs` テーブル・`GET /faqs`） | [step1-faq-search.md](demo3/step1-faq-search.md) |
+
 Demo 1（Next.js + モックデータ）の内容は [frontend/README.md](../frontend/README.md) にまとめています。
