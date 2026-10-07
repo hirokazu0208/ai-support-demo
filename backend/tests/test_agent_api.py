@@ -11,7 +11,7 @@ from app.db.session import create_db_engine, create_session_factory, get_db
 from app.main import app
 from app.routers.agent import get_agent
 
-RESPONSE_KEYS = {"message", "action", "matchedFaqs", "toolCalls"}
+RESPONSE_KEYS = {"message", "action", "matchedFaqs", "toolCalls", "inquiryDraft"}
 FAQ_KEYS = {"id", "question", "answer", "category", "score"}
 
 
@@ -41,6 +41,7 @@ def test_faq_answer_for_vpn(seeded_client: TestClient) -> None:
     assert body["toolCalls"] == [
         {"name": "search_faqs", "arguments": {"query": "VPNがすぐ切れます", "limit": 3}}
     ]
+    assert body["inquiryDraft"] is None
 
 
 def test_faq_answer_for_password(seeded_client: TestClient) -> None:
@@ -58,12 +59,18 @@ def test_multiple_faqs(seeded_client: TestClient) -> None:
     assert len(body["matchedFaqs"]) <= 3
 
 
-def test_no_faq_suggests_inquiry(seeded_client: TestClient) -> None:
+def test_no_faq_drafts_inquiry(seeded_client: TestClient) -> None:
+    """FAQ で解決できない場合は起票案を返す（Step 4 で INQUIRY_SUGGESTED から変更）。"""
     body = chat(seeded_client, {"message": "宇宙旅行に行きたいです"}).json()
 
-    assert body["action"] == "INQUIRY_SUGGESTED"
+    assert body["action"] == "INQUIRY_DRAFTED"
     assert body["matchedFaqs"] == []
     assert body["message"].startswith("FAQ では解決できませんでした")
+    assert body["inquiryDraft"] == {
+        "title": "宇宙旅行に行きたいです",
+        "description": "宇宙旅行に行きたいです",
+        "category": "OTHER",
+    }
 
 
 def test_message_is_trimmed(seeded_client: TestClient) -> None:
@@ -122,6 +129,7 @@ def test_agent_can_be_replaced_via_dependency(seeded_client: TestClient) -> None
         "action": "INQUIRY_SUGGESTED",
         "matchedFaqs": [],
         "toolCalls": [],
+        "inquiryDraft": None,
     }
 
 
@@ -170,4 +178,61 @@ def test_openapi_describes_agent_chat(seeded_client: TestClient) -> None:
     assert request["additionalProperties"] is False
     assert request["properties"]["message"]["maxLength"] == 1000
     assert set(components["AgentChatResponse"]["properties"]) == RESPONSE_KEYS
-    assert components["AgentAction"]["enum"] == ["FAQ_ANSWER", "INQUIRY_SUGGESTED"]
+    assert components["AgentAction"]["enum"] == [
+        "FAQ_ANSWER",
+        "INQUIRY_SUGGESTED",
+        "INQUIRY_DRAFTED",
+    ]
+
+
+def test_registration_request_returns_draft(seeded_client: TestClient) -> None:
+    body = chat(
+        seeded_client, {"message": "プリンタで両面印刷できません。\n問い合わせとして登録して"}
+    ).json()
+
+    assert body["action"] == "INQUIRY_DRAFTED"
+    assert [call["name"] for call in body["toolCalls"]] == ["search_faqs", "draft_inquiry"]
+    assert body["toolCalls"][1]["arguments"] == {
+        "message": "プリンタで両面印刷できません。\n問い合わせとして登録して"
+    }
+    assert body["inquiryDraft"] == {
+        "title": "プリンタで両面印刷できません",
+        "description": "プリンタで両面印刷できません。",
+        "category": "OTHER",
+    }
+    assert body["matchedFaqs"][0]["id"] == 9
+
+
+def test_request_without_content_has_no_draft(seeded_client: TestClient) -> None:
+    body = chat(seeded_client, {"message": "問い合わせを登録したい"}).json()
+
+    assert body["action"] == "INQUIRY_SUGGESTED"
+    assert body["inquiryDraft"] is None
+
+
+def test_chat_does_not_create_inquiry_but_draft_can_be_registered(
+    seeded_client: TestClient, db_session: Session
+) -> None:
+    """Human-in-the-loop: チャットでは登録されず、起票案を人が既存の POST /inquiries に送ると登録される。"""
+    seed_inquiries(db_session)
+    before = len(seeded_client.get("/inquiries").json())
+
+    draft = chat(
+        seeded_client, {"message": "PCが起動しません。ヘルプデスクに相談したいです"}
+    ).json()["inquiryDraft"]
+
+    assert len(seeded_client.get("/inquiries").json()) == before
+    created = seeded_client.post("/inquiries", json=draft)
+    assert created.status_code == 201
+    assert created.json()["title"] == draft["title"] == "PCが起動しません"
+    assert created.json()["status"] == "OPEN"
+    assert len(seeded_client.get("/inquiries").json()) == before + 1
+
+
+def test_openapi_describes_inquiry_draft(seeded_client: TestClient) -> None:
+    components = seeded_client.get("/openapi.json").json()["components"]["schemas"]
+
+    draft = components["InquiryDraft"]
+    assert set(draft["properties"]) == {"title", "description", "category"}
+    assert draft["properties"]["title"]["maxLength"] == 100
+    assert draft["properties"]["description"]["maxLength"] == 2000

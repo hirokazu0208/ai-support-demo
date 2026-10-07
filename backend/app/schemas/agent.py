@@ -5,6 +5,7 @@ from pydantic.alias_generators import to_camel
 
 from app.agents.base import AgentAction, AgentReply
 from app.schemas.faq import FaqResponse
+from app.schemas.inquiry import InquiryDraft
 
 AGENT_MESSAGE_MAX_LENGTH = 1000
 
@@ -31,7 +32,10 @@ class ToolCallResponse(BaseModel):
 
 
 class AgentChatResponse(BaseModel):
-    """POST /agent/chat の応答（JSON は camelCase: matchedFaqs / toolCalls）。"""
+    """POST /agent/chat の応答（JSON は camelCase: matchedFaqs / toolCalls / inquiryDraft）。
+
+    inquiryDraft は action が INQUIRY_DRAFTED のときのみ値を持ち、それ以外は null。
+    """
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -39,6 +43,7 @@ class AgentChatResponse(BaseModel):
     action: AgentAction
     matched_faqs: list[FaqResponse]
     tool_calls: list[ToolCallResponse]
+    inquiry_draft: InquiryDraft | None = None
 
     @classmethod
     def from_reply(cls, reply: AgentReply) -> "AgentChatResponse":
@@ -50,4 +55,5 @@ class AgentChatResponse(BaseModel):
                 ToolCallResponse(name=call.name, arguments=call.arguments)
                 for call in reply.tool_calls
             ],
+            inquiry_draft=reply.inquiry_draft,
         )

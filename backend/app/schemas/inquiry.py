@@ -52,11 +52,18 @@ class InquiryListParams(BaseModel):
 
 # 前後の空白を除いてから長さを検証する。長さは Python の len()（コードポイント単位）で数え、
 # Demo 1 の validation.ts（countChars）と同じ上限にそろえる
+TITLE_MAX_LENGTH = 100
+DESCRIPTION_MAX_LENGTH = 2000
+
 InquiryTitle = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=TITLE_MAX_LENGTH),
 ]
 InquiryDescription = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=DESCRIPTION_MAX_LENGTH
+    ),
 ]
 
 
@@ -72,6 +79,15 @@ class InquiryCreate(BaseModel):
     title: InquiryTitle
     description: InquiryDescription
     category: InquiryCategory
+
+
+class InquiryDraft(InquiryCreate):
+    """AI Agent が作成する問い合わせの起票案（Demo 3 Step 4）。
+
+    POST /inquiries の InquiryCreate と同じ制約（title 1〜100 文字・description 1〜2000 文字・
+    category は InquiryCategory）をそのまま継承する。起票案は DB に保存せず、
+    人が既存の登録画面で確認・修正してから POST /inquiries で登録する。
+    """
 
 
 class InquiryStatusUpdate(BaseModel):
