@@ -45,8 +45,7 @@
 | Step 2 | Agent API（RuleBasedAgent が FAQ 検索 Tool を呼ぶ `POST /agent/chat`） | [step2-agent-api.md](demo3/step2-agent-api.md) |
 | Step 3 | Next.js チャット UI（`/chat`）と Agent API の接続 | [step3-chat-ui.md](demo3/step3-chat-ui.md) |
 | Step 4 | 問い合わせ起票案 Tool（`draft_inquiry`）と Human-in-the-loop の登録導線 | [step4-inquiry-draft.md](demo3/step4-inquiry-draft.md) |
+| Step 5 | LLM Agent（Provider の切り替え・`LLMClient` Protocol・OpenAI Responses API Adapter・Tool の許可リスト・フォールバック） | [step5-llm-agent.md](demo3/step5-llm-agent.md) |
 | Step 6 | 面談デモ用の最終検証・README 整備・デモ手順書と想定 Q&A | [demo-script.md](demo3/demo-script.md) |
-
-Step 5（外部 LLM 接続）は保留中です。
 
 Demo 1（Next.js + モックデータ）の内容は [frontend/README.md](../frontend/README.md) にまとめています。

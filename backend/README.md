@@ -2,7 +2,7 @@
 
 問い合わせ管理アプリの REST API です（Python / FastAPI）。Demo 2 で段階的に構築しています。
 
-現在の到達点は **Demo 3 Step 4（問い合わせ起票案 Tool）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更、FAQ 検索、AI Agent との対話（`POST /agent/chat`。Agent が FAQ 検索 Tool と問い合わせ起票案 Tool を選んで呼ぶ。起票案は DB に保存せず、登録は人が既存の登録画面から行う）と、ヘルスチェック（`/health`・`/health/ready`）を提供し、frontend（Next.js）のサーバー側から呼び出されます。DB は `DATABASE_URL` で SQLite / PostgreSQL を切り替えます。
+現在の到達点は **Demo 3 Step 5（LLM Agent）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更、FAQ 検索、AI Agent との対話（`POST /agent/chat`。Agent が FAQ 検索 Tool と問い合わせ起票案 Tool を選んで呼ぶ。起票案は DB に保存せず、登録は人が既存の登録画面から行う）と、ヘルスチェック（`/health`・`/health/ready`）を提供し、frontend（Next.js）のサーバー側から呼び出されます。DB は `DATABASE_URL` で SQLite / PostgreSQL を切り替えます。Agent は `AGENT_PROVIDER` で RuleBasedAgent（既定。外部 LLM なし）と LLM Agent（OpenAI Responses API。Mock / Fake テストまで実装済みで、実 API への接続は任意）を切り替えます。
 
 設計の詳細は以下を参照してください。
 
@@ -15,6 +15,7 @@
 - [Demo 3 Step 1：FAQ 検索](../docs/demo3/step1-faq-search.md)
 - [Demo 3 Step 2：Agent API](../docs/demo3/step2-agent-api.md)
 - [Demo 3 Step 4：問い合わせ起票案 Tool](../docs/demo3/step4-inquiry-draft.md)
+- [Demo 3 Step 5：LLM Agent](../docs/demo3/step5-llm-agent.md)
 
 ## 使用技術
 
@@ -23,6 +24,7 @@
 - SQLAlchemy 2.1（2.x スタイル）/ Alembic（スキーマ管理）
 - SQLite（ホストでの開発・既定のテスト）/ PostgreSQL 18 + psycopg 3（Docker Compose。将来 Azure Database for PostgreSQL へ移行）
 - pydantic-settings（環境変数の読み込み）
+- openai（OpenAI Responses API の SDK。`AGENT_PROVIDER=openai` のときだけ使用）
 - pytest / httpx2（テスト。FastAPI の TestClient が使用）
 
 ## ディレクトリ構成
@@ -46,10 +48,18 @@ backend/
 │   │   └── faq_seed_data.py # FAQ 10 件
 │   ├── agents/
 │   │   ├── base.py        # Agent プロトコル・AgentAction・AgentReply・ToolCall
-│   │   └── rule_based.py  # RuleBasedAgent（どの Tool を呼ぶかを決める。外部 LLM なし）
+│   │   ├── rule_based.py  # RuleBasedAgent（どの Tool を呼ぶかを決める。外部 LLM なし）
+│   │   ├── factory.py     # AGENT_PROVIDER から Agent を組み立てる
+│   │   ├── fallback.py    # FallbackAgent（LLM の障害時は RuleBasedAgent で応答）
+│   │   └── llm/
+│   │       ├── client.py        # LLMClient Protocol・LLMRequest / LLMTurn・LLMError 系の例外
+│   │       ├── agent.py         # LLMAgent（tool calling のループと上限）
+│   │       ├── openai_client.py # OpenAIResponsesClient（openai SDK を使うのはここだけ）
+│   │       └── prompts.py       # システム指示
 │   ├── tools/
 │   │   ├── faq_search.py  # FAQ 検索 Tool（repository の search_faqs() を呼ぶ薄い層）
-│   │   └── draft_inquiry.py # 問い合わせ起票案 Tool（登録依頼の判定・カテゴリ分類。DB には書かない）
+│   │   ├── draft_inquiry.py # 問い合わせ起票案 Tool（登録依頼の判定・カテゴリ分類。DB には書かない）
+│   │   └── registry.py    # LLM に公開する Tool の許可リスト（search_faqs / draft_inquiry のみ）
 │   ├── models/
 │   │   ├── inquiry.py     # Inquiry モデル・InquiryCategory・InquiryStatus
 │   │   └── faq.py         # Faq モデル（category は InquiryCategory を再利用）
@@ -176,6 +186,9 @@ Docker Compose では `DATABASE_URL`（PostgreSQL。ルートの `.env` から�
 |---|---|---|
 | `DATABASE_URL` | `sqlite:///<backend の絶対パス>/data/app.db` | DB 接続 URL。既定値は起動ディレクトリによらず `backend/data/app.db` を指します。PostgreSQL は `postgresql+psycopg://user:password@host:5432/db`（Azure では `?sslmode=require`） |
 | `TEST_DATABASE_URL` | なし（テストごとの一時 SQLite） | pytest 用。テスト専用の DB のみ（DB 名に `test` を含むこと） |
+| `AGENT_PROVIDER` | `rule` | `rule`（RuleBasedAgent）/ `openai`（LLM Agent） |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | なし | `AGENT_PROVIDER=openai` のときだけ必須（不足していると起動時に検証エラー）。キーは frontend に渡さない |
 
 - 環境変数 → `backend/.env` → 既定値の順で解決します。`.env` は Git 管理対象外です。
 - SQLite の場所を変える場合は絶対パスで指定してください（`sqlite:////absolute/path/to/app.db`）。相対パスは起動ディレクトリ基準で解決されます。
+- Agent の上限値（`AGENT_MAX_LLM_ROUNDS` など）と OpenAI の設定の一覧は [Step 5 の設計記録](../docs/demo3/step5-llm-agent.md#4-provider-switching) を参照してください。設定エラーのメッセージには入力値（API キーなど）を表示しません。

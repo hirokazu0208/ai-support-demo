@@ -39,7 +39,7 @@ flowchart LR
 | `src/components/chat/InquiryDraftCard.tsx` | Agent が作成した問い合わせ起票案（タイトル・カテゴリ・内容）と「内容を確認して登録へ」（`/inquiries/new?title=&category=&description=` へ引き継ぐ。ここでは登録しない） |
 | `src/app/inquiries/new/page.tsx`（変更） | クエリに起票案がある場合のみフォームの初期値にする（`parseInquiryPrefill`。不正なカテゴリは未選択、長すぎる値は上限で切る）。登録は既存の「登録する」→ Server Action → `POST /inquiries` のみ |
 | `src/lib/agent/types.ts`、`repository.ts` | API の型（`AgentAction`・`AgentFaq`・`AgentToolCall`・`AgentChatResponse`）と、応答を検証する server-only のアクセス層 |
-| `src/lib/api/http.ts` | FastAPI を呼ぶ HTTP の共通処理（`API_BASE_URL`・タイムアウト・`no-store`・エラー処理）。問い合わせ・Agent の repository が共有する |
+| `src/lib/api/http.ts` | FastAPI を呼ぶ HTTP の共通処理（`API_BASE_URL`・タイムアウト（既定 10 秒。`POST /agent/chat` だけ 30 秒）・`no-store`・エラー処理）。問い合わせ・Agent の repository が共有する |
 
 - ブラウザは FastAPI を直接呼びません（通信先は `localhost:3000` のみ。CORS も不要）。
 - Agent API に接続できない場合は「AIサポートに接続できませんでした。時間をおいて再度お試しください。」を表示し、原因はサーバーログにのみ出力します。
