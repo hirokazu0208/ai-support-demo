@@ -2,6 +2,7 @@ import Form from "next/form";
 import Link from "next/link";
 import { INQUIRY_STATUSES, INQUIRY_STATUS_LABELS } from "@/lib/inquiries/types";
 import type { InquiryQuery } from "@/lib/inquiries/types";
+import { QUERY_MAX_LENGTH } from "@/lib/inquiries/validation";
 
 /** 検索条件は URL（?q=&status=）で管理する GET フォーム */
 export function InquirySearchForm({ q, status }: InquiryQuery) {
@@ -18,6 +19,7 @@ export function InquirySearchForm({ q, status }: InquiryQuery) {
           type="search"
           name="q"
           defaultValue={q}
+          maxLength={QUERY_MAX_LENGTH}
           placeholder="タイトル・内容で検索"
           className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
         />

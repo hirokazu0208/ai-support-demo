@@ -10,6 +10,8 @@ type SearchParams = Record<string, string | string[] | undefined>;
 
 export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 2000;
+/** 検索キーワードの上限（FastAPI の GET /inquiries の q と同じ） */
+export const QUERY_MAX_LENGTH = 200;
 
 export function isInquiryStatus(value: unknown): value is InquiryStatus {
   return (
@@ -33,9 +35,11 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 /**
  * URL の searchParams を InquiryQuery に変換する。
  * 空文字・未知の status は「指定なし」として扱う。
+ * q は QUERY_MAX_LENGTH 文字（コードポイント単位）までに切り詰める（API が超過を 422 にするため）。
  */
 export function parseInquiryQuery(searchParams: SearchParams): InquiryQuery {
-  const q = firstValue(searchParams.q)?.trim();
+  const rawQ = firstValue(searchParams.q)?.trim();
+  const q = rawQ && truncateChars(rawQ, QUERY_MAX_LENGTH).trim();
   const status = firstValue(searchParams.status);
 
   return {
@@ -78,6 +82,12 @@ function textValue(formData: FormData, name: CreateInquiryField): string {
 /** 文字数はコードポイント単位で数える（Python の len() と同じ数え方） */
 function countChars(value: string): number {
   return [...value].length;
+}
+
+/** コードポイント単位で先頭から maxLength 文字に切り詰める（サロゲートペアを分割しない） */
+function truncateChars(value: string, maxLength: number): string {
+  const chars = [...value];
+  return chars.length > maxLength ? chars.slice(0, maxLength).join("") : value;
 }
 
 /**
