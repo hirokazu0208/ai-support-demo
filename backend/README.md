@@ -2,7 +2,7 @@
 
 問い合わせ管理アプリの REST API です（Python / FastAPI）。Demo 2 で段階的に構築しています。
 
-現在の到達点は **Demo 2 Step 4（問い合わせの書き込み API）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更と、ヘルスチェック（`/health`・`/health/ready`）を提供します。frontend との接続はまだ行っていません。
+現在の到達点は **Demo 2 Step 6B（Docker Compose での PostgreSQL 化）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更と、ヘルスチェック（`/health`・`/health/ready`）を提供し、frontend（Next.js）のサーバー側から呼び出されます。DB は `DATABASE_URL` で SQLite / PostgreSQL を切り替えます。
 
 設計の詳細は以下を参照してください。
 
@@ -11,13 +11,14 @@
 - [Step 3：読み取り API](../docs/demo2/step3-read-api.md)
 - [Step 4：書き込み API](../docs/demo2/step4-write-api.md)
 - [Step 6A：Docker 化](../docs/demo2/step6a-docker.md)
+- [Step 6B：PostgreSQL 化](../docs/demo2/step6b-postgresql.md)
 
 ## 使用技術
 
 - Python 3.11
 - FastAPI / Uvicorn
 - SQLAlchemy 2.1（2.x スタイル）/ Alembic（スキーマ管理）
-- SQLite（将来 Azure Database for PostgreSQL へ移行できる構成）
+- SQLite（ホストでの開発・既定のテスト）/ PostgreSQL 18 + psycopg 3（Docker Compose。将来 Azure Database for PostgreSQL へ移行）
 - pydantic-settings（環境変数の読み込み）
 - pytest / httpx2（テスト。FastAPI の TestClient が使用）
 
@@ -120,6 +121,13 @@ pytest -q
 
 テストは一時ディレクトリの SQLite に Alembic migration を適用して実行します。`data/app.db` には触れません。
 
+PostgreSQL で実行する場合は、`TEST_DATABASE_URL` にテスト専用の DB を指定します（DB 名に `test` を含まない URL は拒否されます。各テストの開始時に `public` スキーマを作り直すため、開発用の DB を指定しないでください）。Docker Compose の test プロファイルを使うと、使い捨ての PostgreSQL で全テストを実行できます。
+
+```bash
+# リポジトリ直下で実行（.env が必要）
+docker compose --profile test run --rm backend-test
+```
+
 ## migration の追加
 
 ```bash
@@ -133,7 +141,7 @@ autogenerate の結果はそのまま使わず、必ず内容を確認してく�
 
 ## Docker
 
-`backend/Dockerfile` は本番を想定したイメージです（`python:3.11-slim`、root 以外のユーザー `app`、実行時の依存のみ、テスト・`.env`・`data/` は含めない）。起動はリポジトリ直下の `compose.yaml` から行います（[README](../README.md#docker-compose-での起動)）。
+`backend/Dockerfile` は本番を想定したイメージです（`python:3.11-slim`、root 以外のユーザー `app`、実行時の依存のみ、テスト・`.env`・`data/` は含めない）。既定のビルド対象は `runtime` ステージで、`test` ステージ（開発用の依存とテストを追加）は PostgreSQL でのテスト実行にのみ使います。起動はリポジトリ直下の `compose.yaml` から行います（[README](../README.md#docker-compose-での起動)）。
 
 ```bash
 # Compose 環境での seed・任意コマンド（コンテナは実行後に削除）
@@ -141,13 +149,14 @@ docker compose run --rm backend python -m app.db.seed
 docker compose run --rm backend alembic current
 ```
 
-コンテナ内では `DATABASE_URL` 未設定時の既定値 `/app/data/app.db` を使い、`/app/data` に名前付き volume をマウントします。
+Docker Compose では `DATABASE_URL`（PostgreSQL。ルートの `.env` から組み立て）を渡します。`DATABASE_URL` を渡さずにイメージを起動した場合は、既定値の `/app/data/app.db`（SQLite）を使います。
 
 ## 環境変数
 
 | 変数名 | 既定値 | 説明 |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///<backend の絶対パス>/data/app.db` | DB 接続 URL。既定値は起動ディレクトリによらず `backend/data/app.db` を指します |
+| `DATABASE_URL` | `sqlite:///<backend の絶対パス>/data/app.db` | DB 接続 URL。既定値は起動ディレクトリによらず `backend/data/app.db` を指します。PostgreSQL は `postgresql+psycopg://user:password@host:5432/db`（Azure では `?sslmode=require`） |
+| `TEST_DATABASE_URL` | なし（テストごとの一時 SQLite） | pytest 用。テスト専用の DB のみ（DB 名に `test` を含むこと） |
 
 - 環境変数 → `backend/.env` → 既定値の順で解決します。`.env` は Git 管理対象外です。
 - SQLite の場所を変える場合は絶対パスで指定してください（`sqlite:////absolute/path/to/app.db`）。相対パスは起動ディレクトリ基準で解決されます。

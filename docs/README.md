@@ -35,5 +35,6 @@
 | Step 4 | 問い合わせの書き込み API（登録・ステータス変更） | [step4-write-api.md](demo2/step4-write-api.md) |
 | Step 5 | Next.js frontend と FastAPI backend の接続 | [step5-frontend-api-integration.md](demo2/step5-frontend-api-integration.md) |
 | Step 6A | frontend / backend の Docker 化と Docker Compose（DB は SQLite） | [step6a-docker.md](demo2/step6a-docker.md) |
+| Step 6B | Docker Compose での PostgreSQL 化（SQLite / PostgreSQL の切り替え） | [step6b-postgresql.md](demo2/step6b-postgresql.md) |
 
 Demo 1（Next.js + モックデータ）の内容は [frontend/README.md](../frontend/README.md) にまとめています。

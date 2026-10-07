@@ -16,7 +16,7 @@
 | Demo | 内容 | 状態 |
 |---|---|---|
 | Demo 1 | Next.js の UI と、インメモリのモックデータによる問い合わせ管理 | 完了（タグ `demo-1`） |
-| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中（Step 6A：Docker / Docker Compose 化まで完了） |
+| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中（Step 6B：Docker Compose での PostgreSQL 化まで完了） |
 
 ## 構成図
 
@@ -24,10 +24,10 @@
 flowchart LR
   Browser["ブラウザ"] -->|"http://localhost:3000"| Next["Next.js<br/>（frontend）"]
   Next -->|"REST API（API_BASE_URL）"| API["FastAPI<br/>（backend）"]
-  API -->|SQLAlchemy| DB[("SQLite<br/>backend/data/app.db")]
+  API -->|SQLAlchemy| DB[("SQLite（ホストでの開発）<br/>PostgreSQL 18（Docker Compose）")]
 ```
 
-ブラウザは Next.js とだけ通信し、FastAPI は Next.js のサーバー側から呼び出します（ブラウザから FastAPI へは直接通信しません）。
+ブラウザは Next.js とだけ通信し、FastAPI は Next.js のサーバー側から呼び出します（ブラウザから FastAPI へは直接通信しません）。DB は `DATABASE_URL` で切り替えます（ホストでの開発は SQLite、Docker Compose は PostgreSQL）。
 
 ## ローカルでの起動方法
 
@@ -54,10 +54,11 @@ DB を初期状態に戻す場合は `backend/` で `alembic downgrade base && a
 
 ## Docker Compose での起動
 
-本番に近い構成（frontend・backend をコンテナで実行）で確認する場合に使います。開発時は上記のホストでの起動を使ってください。Docker Desktop（Docker Compose v2）が必要です。
+本番に近い構成（frontend・backend・PostgreSQL をコンテナで実行）で確認する場合に使います。開発時は上記のホストでの起動を使ってください。Docker Desktop（Docker Compose v2）が必要です。
 
 ```bash
-docker compose up -d --build                              # migrate → backend → frontend の順に起動
+cp .env.example .env                                      # 初回のみ。POSTGRES_PASSWORD を設定（openssl rand -hex 24 など）
+docker compose up -d --build                              # db → migrate → backend → frontend の順に起動
 docker compose run --rm backend python -m app.db.seed     # 初期データ 8 件（手動。空のときだけ投入）
 ```
 
@@ -65,10 +66,12 @@ docker compose run --rm backend python -m app.db.seed     # 初期データ 8 �
 
 | サービス | 内容 | ホストへの公開 |
 |---|---|---|
+| `db` | PostgreSQL 18（`postgres:18-alpine`）。データは volume `ai-support-desk_pgdata` | **なし**（確認は `docker compose exec db psql`） |
 | `migrate` | `alembic upgrade head` を実行して終了する | なし |
 | `backend` | FastAPI。frontend からは `http://backend:8000` で接続 | **なし**（ブラウザから直接アクセスしない） |
 | `frontend` | Next.js（standalone） | `3000` |
 
-- SQLite は名前付き volume `ai-support-desk_backend-data` に保存されます（ホストの `backend/data/app.db` とは別）。
+- 接続情報（`POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD`）はリポジトリ直下の `.env`（Git 管理対象外）に置き、`compose.yaml` で `DATABASE_URL` を組み立てます。`docker compose config` の出力はパスワードを含むため共有しないでください。
 - `docker compose down` ではデータは残り、`docker compose down -v` で volume ごと削除されます。
-- 設計の詳細は [docs/demo2/step6a-docker.md](docs/demo2/step6a-docker.md) を参照してください。
+- PostgreSQL でテストを実行する場合: `docker compose --profile test run --rm backend-test`（使い捨ての `db-test` を使用。開発用の `db` には触れません）
+- 設計の詳細は [docs/demo2/step6a-docker.md](docs/demo2/step6a-docker.md)・[docs/demo2/step6b-postgresql.md](docs/demo2/step6b-postgresql.md) を参照してください。
