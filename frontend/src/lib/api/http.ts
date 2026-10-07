@@ -8,8 +8,8 @@ import "server-only";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
-/** API の呼び出しが応答しない場合にページが止まり続けないようにする */
-const REQUEST_TIMEOUT_MS = 10_000;
+/** API の呼び出しが応答しない場合にページが止まり続けないようにする（既定。API ごとに上書きできる） */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
 /** API の想定外の応答（404 以外のエラー・不正な JSON・型の不一致） */
 export class ApiError extends Error {
@@ -25,6 +25,8 @@ export class ApiError extends Error {
 export type RequestOptions = {
   params?: URLSearchParams;
   body?: unknown;
+  /** HTTP の待機時間（ミリ秒）。未指定は DEFAULT_REQUEST_TIMEOUT_MS */
+  timeoutMs?: number;
 };
 
 /**
@@ -35,7 +37,7 @@ export type RequestOptions = {
 export async function request(
   method: "GET" | "POST" | "PATCH",
   path: string,
-  { params, body }: RequestOptions = {},
+  { params, body, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS }: RequestOptions = {},
 ): Promise<Response> {
   const query = params?.size ? `?${params}` : "";
   return fetch(`${getApiBaseUrl()}${path}${query}`, {
@@ -46,7 +48,7 @@ export async function request(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 

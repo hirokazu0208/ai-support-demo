@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=BACKEND_DIR / ".env", env_file_encoding="utf-8"
+        env_file=BACKEND_DIR / ".env",
+        env_file_encoding="utf-8",
+        # 設定エラーのメッセージ（str / repr）に入力値を含めない。
+        # 不正な項目名と理由は表示し、API キー・DB のパスワードなどの値そのものは表示しない
+        hide_input_in_errors=True,
     )
 
     database_url: str = f"sqlite:///{DEFAULT_SQLITE_PATH}"

@@ -1,5 +1,7 @@
 """Agent Provider 設定（Demo 3 Step 5）のテスト。backend/.env は読まない（_env_file=None）。"""
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -157,3 +159,63 @@ def test_api_key_is_not_exposed_in_repr_or_errors(
     with pytest.raises(ValidationError) as error:
         Settings(_env_file=None)
     assert FAKE_KEY not in str(error.value)
+
+
+# --- 設定エラーのメッセージに入力値（秘密値）を含めない（hide_input_in_errors）---------------
+DB_PASSWORD = "pw-test-do-not-leak-9876"
+
+
+def assert_secrets_hidden(error: ValidationError) -> None:
+    for text in (str(error), repr(error)):
+        assert FAKE_KEY not in text
+        assert DB_PASSWORD not in text
+        assert "input_value" not in text
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        # model_validator のエラー（入力全体が対象になる）: OPENAI_MODEL の欠落
+        ({"AGENT_PROVIDER": "openai", "OPENAI_API_KEY": FAKE_KEY}, "OPENAI_MODEL"),
+        # 別の項目の不正と同時: API キーは正しくても、エラーのメッセージに入力全体を出さない
+        (
+            {"AGENT_PROVIDER": "azure", "OPENAI_API_KEY": FAKE_KEY},
+            "agent_provider",
+        ),
+        # 秘密値が誤って別の項目に設定された場合（その項目の入力値として表示されうる）
+        ({"OPENAI_MAX_RETRIES": FAKE_KEY}, "openai_max_retries"),
+        ({"OPENAI_MODEL": "test-model", "AGENT_TIMEOUT_SECONDS": FAKE_KEY}, "agent_timeout_seconds"),
+    ],
+)
+def test_validation_errors_do_not_include_input_values(
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str], expected: str
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", f"postgresql+psycopg://user:{DB_PASSWORD}@db:5432/app")
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None)
+
+    # どの項目が不正かは分かる。値そのものは表示しない
+    assert expected in str(error.value)
+    assert_secrets_hidden(error.value)
+
+
+def test_validation_errors_from_env_file_do_not_include_input_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # backend/.env（ファイル）から読んだ値でも同じ
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        f"AGENT_PROVIDER=openai\nOPENAI_API_KEY={FAKE_KEY}\n"
+        f"DATABASE_URL=postgresql+psycopg://user:{DB_PASSWORD}@db:5432/app\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=env_file)  # type: ignore[call-arg]
+
+    assert "OPENAI_MODEL" in str(error.value)
+    assert_secrets_hidden(error.value)

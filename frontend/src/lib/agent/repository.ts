@@ -14,9 +14,20 @@ import type {
   InquiryDraft,
 } from "./types";
 
+/**
+ * POST /agent/chat を待つ HTTP の待機時間（frontend 側）。
+ * LLM Agent は LLM の推論と Tool 呼び出しの往復で通常の API より時間がかかるため、この API だけ長くする。
+ * backend 側の Agent 処理全体の上限（AGENT_TIMEOUT_SECONDS、既定 20 秒）とは別の設定で、
+ * backend の上限より長くして、backend の応答（フォールバックを含む）を待てるようにする。
+ */
+export const AGENT_REQUEST_TIMEOUT_MS = 30_000;
+
 /** Agent に質問を送り、応答を返す。API の失敗・不正な応答は例外（呼び出し側で利用者向けの文言にする） */
 export async function sendAgentMessage(message: string): Promise<AgentChatResponse> {
-  const response = await request("POST", "/agent/chat", { body: { message } });
+  const response = await request("POST", "/agent/chat", {
+    body: { message },
+    timeoutMs: AGENT_REQUEST_TIMEOUT_MS,
+  });
   ensureOk(response, "POST /agent/chat");
   const body = await readJson(response);
   if (!isAgentChatResponse(body)) {

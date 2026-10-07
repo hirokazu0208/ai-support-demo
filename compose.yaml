@@ -15,7 +15,8 @@
 #   docker compose --profile test run --rm backend-test     # PostgreSQL（使い捨ての db-test）で pytest
 #
 # 開発時はホストの uvicorn / npm run dev を使う（DB は SQLite。README 参照）。
-# 接続情報は .env（Git 管理対象外）から読み込む。docker compose config の出力はパスワードを含むため共有しないこと。
+# 接続情報と AI Agent の設定は .env（Git 管理対象外）から読み込む。
+# docker compose config の出力はパスワード・API キーを含むため共有しないこと。
 
 name: ai-support-desk
 
@@ -62,6 +63,23 @@ services:
     image: ai-support-desk-backend:local
     environment:
       DATABASE_URL: *database-url
+      # --- AI Agent（Demo 3 Step 5）。値は .env から読み込む（未設定なら右側の既定値）---------
+      # 既定は rule（RuleBasedAgent。外部 LLM を使わず、API キーなしで起動できる）。
+      # 数値の既定値は backend の Settings と同じ値（空文字を渡すと Settings の検証で起動失敗になるため）。
+      AGENT_PROVIDER: ${AGENT_PROVIDER:-rule}
+      AGENT_FALLBACK_TO_RULE: ${AGENT_FALLBACK_TO_RULE:-true}
+      AGENT_MAX_LLM_ROUNDS: ${AGENT_MAX_LLM_ROUNDS:-3}
+      AGENT_MAX_TOOL_CALLS: ${AGENT_MAX_TOOL_CALLS:-4}
+      AGENT_TIMEOUT_SECONDS: ${AGENT_TIMEOUT_SECONDS:-20}
+      # OpenAI の設定は backend にだけ渡す（frontend / migrate には渡さない）。
+      # API キーとモデル名は AGENT_PROVIDER=openai の場合のみ必須（不足時は Settings の検証で起動失敗）。
+      # 空の値は未設定として扱う（OPENAI_BASE_URL が空なら SDK の既定のエンドポイント）。
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-10}
+      OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-1}
+      OPENAI_MAX_OUTPUT_TOKENS: ${OPENAI_MAX_OUTPUT_TOKENS:-800}
     # ports は指定しない（ホストへ公開しない）。frontend からは http://backend:8000 で接続する
     expose:
       - "8000"
