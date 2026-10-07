@@ -1,19 +1,46 @@
-# Demo 2 Step 6A: frontend / backend のコンテナ化（DB は SQLite のまま）。
+# Demo 2 Step 6A / 6B: frontend / backend のコンテナ化と PostgreSQL。
 #
-#   ブラウザ → frontend（ホストの 3000 番のみ公開）→ backend:8000（Compose 内部ネットワーク）→ SQLite（名前付き volume）
+#   ブラウザ → frontend（ホストの 3000 番のみ公開）→ backend:8000 → db:5432（PostgreSQL 18）
+#   backend と db はホストへ公開しない（Compose 内部ネットワークのみ）
 #
-# 起動順: migrate（alembic upgrade head が成功して終了）→ backend（/health/ready が healthy）→ frontend
+# 起動順: db（pg_isready が healthy）→ migrate（alembic upgrade head が成功して終了）
+#         → backend（/health/ready が healthy）→ frontend
 #
+#   cp .env.example .env                                     # 初回のみ。POSTGRES_PASSWORD を設定する
 #   docker compose up -d --build
 #   docker compose run --rm backend python -m app.db.seed   # 初期データ（手動。空のときだけ投入）
 #   docker compose down        # コンテナ削除（volume のデータは残る）
 #   docker compose down -v     # volume も削除（データが消える）
 #
-# 開発時はホストの uvicorn / npm run dev を使う（README 参照）。
+#   docker compose --profile test run --rm backend-test     # PostgreSQL（使い捨ての db-test）で pytest
+#
+# 開発時はホストの uvicorn / npm run dev を使う（DB は SQLite。README 参照）。
+# 接続情報は .env（Git 管理対象外）から読み込む。docker compose config の出力はパスワードを含むため共有しないこと。
 
 name: ai-support-desk
 
+# backend / migrate が使う接続 URL（パスワードは .env の値を埋め込む）
+x-database-url: &database-url "postgresql+psycopg://${POSTGRES_USER:?.env に POSTGRES_USER を設定してください}:${POSTGRES_PASSWORD:?.env に POSTGRES_PASSWORD を設定してください}@db:5432/${POSTGRES_DB:?.env に POSTGRES_DB を設定してください}"
+
 services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # PostgreSQL 18 のイメージは PGDATA=/var/lib/postgresql/18/docker、VOLUME /var/lib/postgresql
+      - pgdata:/var/lib/postgresql
+    # ports は指定しない（ホストへ公開しない）。確認は docker compose exec db psql で行う
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   # DB スキーマを最新にして終了する一回限りのジョブ（アプリ起動時には migration しない方針）
   migrate:
     # backend と同じイメージを使う。ビルドは backend サービスだけが行う
@@ -21,15 +48,20 @@ services:
     image: ai-support-desk-backend:local
     pull_policy: never
     command: ["alembic", "upgrade", "head"]
-    volumes:
-      - backend-data:/app/data
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      db:
+        condition: service_healthy
     restart: "no"
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      target: runtime
     image: ai-support-desk-backend:local
-    volumes:
-      - backend-data:/app/data
+    environment:
+      DATABASE_URL: *database-url
     # ports は指定しない（ホストへ公開しない）。frontend からは http://backend:8000 で接続する
     expose:
       - "8000"
@@ -73,6 +105,36 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # --- テスト用（--profile test のときだけ起動）-----------------------------------------
+  # 開発用の db とは別の使い捨て PostgreSQL。データはメモリ（tmpfs）上にのみ置き、ホストへ公開しない。
+  # テストは各テストの開始時に public スキーマを作り直すため、開発用の db は絶対に使わない。
+  db-test:
+    profiles: ["test"]
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ai_support_desk_test
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  backend-test:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: test
+    image: ai-support-desk-backend:test
+    environment:
+      TEST_DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-test:5432/ai_support_desk_test"
+    depends_on:
+      db-test:
+        condition: service_healthy
+
 volumes:
-  # SQLite（/app/data/app.db）の永続化。docker compose down では削除されない
-  backend-data:
+  # PostgreSQL のデータ。docker compose down では削除されない
+  pgdata:

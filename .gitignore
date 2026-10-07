@@ -7,3 +7,8 @@ Thumbs.db
 # エディタ
 .idea/
 .vscode/
+
+# 環境変数（Docker Compose が読み込む PostgreSQL の接続情報など。記入例は管理対象）
+.env
+.env.*
+!.env.example
