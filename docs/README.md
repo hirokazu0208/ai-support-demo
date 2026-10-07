@@ -43,5 +43,6 @@
 |---|---|---|
 | Step 1 | FAQ のデータと検索 Tool（`faqs` テーブル・`GET /faqs`） | [step1-faq-search.md](demo3/step1-faq-search.md) |
 | Step 2 | Agent API（RuleBasedAgent が FAQ 検索 Tool を呼ぶ `POST /agent/chat`） | [step2-agent-api.md](demo3/step2-agent-api.md) |
+| Step 3 | Next.js チャット UI（`/chat`）と Agent API の接続 | [step3-chat-ui.md](demo3/step3-chat-ui.md) |
 
 Demo 1（Next.js + モックデータ）の内容は [frontend/README.md](../frontend/README.md) にまとめています。

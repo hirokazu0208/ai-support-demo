@@ -6,6 +6,7 @@
 
 > **Demo 2 Step 5 で、データの取得元をモックデータから FastAPI（[backend/](../backend/)）に置き換えました。** 現在の構成・起動方法は [Demo 2 での変更](#demo-2-での変更fastapi-との接続) と [ローカルでの起動方法](#ローカルでの起動方法) を参照してください。それ以外の節は Demo 1 時点の記録です（Demo 1 のコードはタグ `demo-1` に残っています）。
 
+- [Demo 3 での変更（AIサポート）](#demo-3-での変更aiサポート)
 - [Demo 2 での変更（FastAPI との接続）](#demo-2-での変更fastapi-との接続)
 - [Demo 1 の目的](#demo-1-の目的)
 - [実装した機能](#実装した機能)
@@ -17,6 +18,29 @@
 - [ローカルでの起動方法](#ローカルでの起動方法)
 - [Demo 1 の制約](#demo-1-の制約)
 - [Demo 2 以降の拡張案](#demo-2-以降の拡張案)
+
+## Demo 3 での変更（AIサポート）
+
+AI Agent に質問できるチャット画面 `/chat`（ヘッダーの「AIサポート」）を追加しました。設計の詳細は [docs/demo3/step3-chat-ui.md](../docs/demo3/step3-chat-ui.md) を参照してください。
+
+```mermaid
+flowchart LR
+  Browser["ブラウザ /chat"] -->|"Server Action（POST localhost:3000）"| Action["sendChatMessageAction"]
+  Action --> Repo["lib/agent/repository.ts（server-only）"]
+  Repo -->|"POST /agent/chat"| API["FastAPI → Agent → FAQ 検索 Tool → DB"]
+```
+
+| ファイル | 役割 |
+|---|---|
+| `src/app/chat/page.tsx` | チャット画面 |
+| `src/app/chat/actions.ts` | Server Action。メッセージを検証して Agent API を呼び、会話に追加する（会話は画面の状態にのみ保持し、保存しない） |
+| `src/components/chat/ChatPanel.tsx` | 会話・入力欄・送信中表示・エラー表示（Client Component、`useActionState`） |
+| `src/components/chat/AgentMessage.tsx`、`FaqCard.tsx` | Agent の回答、参照した FAQ（質問・回答・カテゴリ・一致度）、使用した Tool、問い合わせ登録への導線 |
+| `src/lib/agent/types.ts`、`repository.ts` | API の型（`AgentAction`・`AgentFaq`・`AgentToolCall`・`AgentChatResponse`）と、応答を検証する server-only のアクセス層 |
+| `src/lib/api/http.ts` | FastAPI を呼ぶ HTTP の共通処理（`API_BASE_URL`・タイムアウト・`no-store`・エラー処理）。問い合わせ・Agent の repository が共有する |
+
+- ブラウザは FastAPI を直接呼びません（通信先は `localhost:3000` のみ。CORS も不要）。
+- Agent API に接続できない場合は「AIサポートに接続できませんでした。時間をおいて再度お試しください。」を表示し、原因はサーバーログにのみ出力します。
 
 ## Demo 2 での変更（FastAPI との接続）
 
