@@ -6,7 +6,13 @@ import "server-only";
 import { ApiError, ensureOk, readJson, request } from "@/lib/api/http";
 import { isInquiryCategory } from "@/lib/inquiries/validation";
 import { AGENT_ACTIONS } from "./types";
-import type { AgentAction, AgentChatResponse, AgentFaq, AgentToolCall } from "./types";
+import type {
+  AgentAction,
+  AgentChatResponse,
+  AgentFaq,
+  AgentToolCall,
+  InquiryDraft,
+} from "./types";
 
 /** Agent に質問を送り、応答を返す。API の失敗・不正な応答は例外（呼び出し側で利用者向けの文言にする） */
 export async function sendAgentMessage(message: string): Promise<AgentChatResponse> {
@@ -21,6 +27,7 @@ export async function sendAgentMessage(message: string): Promise<AgentChatRespon
     action: body.action,
     matchedFaqs: body.matchedFaqs.map(toAgentFaq),
     toolCalls: body.toolCalls.map(toAgentToolCall),
+    inquiryDraft: body.inquiryDraft ? toInquiryDraft(body.inquiryDraft) : null,
   };
 }
 
@@ -50,6 +57,15 @@ function isAgentToolCall(value: unknown): value is AgentToolCall {
   return isRecord(value) && typeof value.name === "string" && isRecord(value.arguments);
 }
 
+function isInquiryDraft(value: unknown): value is InquiryDraft {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    typeof value.description === "string" &&
+    isInquiryCategory(value.category)
+  );
+}
+
 function isAgentChatResponse(value: unknown): value is AgentChatResponse {
   return (
     isRecord(value) &&
@@ -58,7 +74,8 @@ function isAgentChatResponse(value: unknown): value is AgentChatResponse {
     Array.isArray(value.matchedFaqs) &&
     value.matchedFaqs.every(isAgentFaq) &&
     Array.isArray(value.toolCalls) &&
-    value.toolCalls.every(isAgentToolCall)
+    value.toolCalls.every(isAgentToolCall) &&
+    (value.inquiryDraft === null || isInquiryDraft(value.inquiryDraft))
   );
 }
 
@@ -75,4 +92,8 @@ function toAgentFaq(faq: AgentFaq): AgentFaq {
 
 function toAgentToolCall(call: AgentToolCall): AgentToolCall {
   return { name: call.name, arguments: call.arguments };
+}
+
+function toInquiryDraft(draft: InquiryDraft): InquiryDraft {
+  return { title: draft.title, description: draft.description, category: draft.category };
 }

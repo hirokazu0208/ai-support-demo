@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { AgentChatResponse } from "@/lib/agent/types";
 import { FaqCard } from "./FaqCard";
+import { InquiryDraftCard } from "./InquiryDraftCard";
 
-/** Agent の応答（回答・参照した FAQ・利用した Tool・次の操作） */
+/** Agent の応答（回答・参照した FAQ・起票案・利用した Tool・次の操作） */
 export function AgentMessage({ reply }: { reply: AgentChatResponse }) {
   const toolNames = reply.toolCalls.map((call) => call.name);
 
@@ -18,8 +19,10 @@ export function AgentMessage({ reply }: { reply: AgentChatResponse }) {
         </section>
       )}
 
+      {reply.inquiryDraft && <InquiryDraftCard draft={reply.inquiryDraft} />}
+
       {reply.action === "INQUIRY_SUGGESTED" && (
-        // Demo 3 Step 4 で、Agent が作成した起票案を引き継ぐ導線に置き換える
+        // 起票案を作れなかった場合（内容がない等）は、空の登録画面へ案内する
         <div>
           <Link
             href="/inquiries/new"

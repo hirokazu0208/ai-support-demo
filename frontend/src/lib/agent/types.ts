@@ -2,8 +2,15 @@ import type { InquiryCategory } from "@/lib/inquiries/types";
 
 /** AI Agent との対話（FastAPI の POST /agent/chat）に対応する型 */
 
-export const AGENT_ACTIONS = ["FAQ_ANSWER", "INQUIRY_SUGGESTED"] as const;
-/** FAQ_ANSWER: FAQ をもとに回答 / INQUIRY_SUGGESTED: FAQ で解決できず問い合わせ登録を提案 */
+export const AGENT_ACTIONS = [
+  "FAQ_ANSWER",
+  "INQUIRY_SUGGESTED",
+  "INQUIRY_DRAFTED",
+] as const;
+/**
+ * FAQ_ANSWER: FAQ をもとに回答 / INQUIRY_SUGGESTED: 問い合わせ登録を提案（起票案なし）/
+ * INQUIRY_DRAFTED: 問い合わせの起票案を作成（登録は人が登録画面で行う）
+ */
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
 /** backend の FaqResponse（GET /faqs と同じ形） */
@@ -21,12 +28,21 @@ export type AgentToolCall = {
   arguments: Record<string, unknown>;
 };
 
+/** backend の InquiryDraft（InquiryCreate と同じ制約。DB には保存されていない起票案） */
+export type InquiryDraft = {
+  title: string;
+  description: string;
+  category: InquiryCategory;
+};
+
 /** backend の AgentChatResponse（JSON は camelCase） */
 export type AgentChatResponse = {
   message: string;
   action: AgentAction;
   matchedFaqs: AgentFaq[];
   toolCalls: AgentToolCall[];
+  /** action が INQUIRY_DRAFTED のときのみ値を持つ */
+  inquiryDraft: InquiryDraft | null;
 };
 
 /** backend の AgentChatRequest.message と同じ上限（前後の空白を除いたコードポイント数） */

@@ -10,7 +10,10 @@ import {
   DESCRIPTION_MAX_LENGTH,
   TITLE_MAX_LENGTH,
 } from "@/lib/inquiries/validation";
-import type { CreateInquiryFormState } from "@/lib/inquiries/validation";
+import type {
+  CreateInquiryFormState,
+  CreateInquiryFormValues,
+} from "@/lib/inquiries/validation";
 
 const initialState: CreateInquiryFormState = {};
 
@@ -28,12 +31,18 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
-export function InquiryForm() {
+/** defaultValues: 初期値（AIサポートの起票案）。送信後は Server Action が返した入力値を優先する */
+export function InquiryForm({
+  defaultValues,
+}: {
+  defaultValues?: CreateInquiryFormValues;
+}) {
   const [state, formAction, pending] = useActionState(
     createInquiryAction,
     initialState,
   );
-  const { errors, values } = state;
+  const { errors } = state;
+  const values = state.values ?? defaultValues;
 
   return (
     // 送信後に React がフォームをリセットするため、返却された入力値が変わったら

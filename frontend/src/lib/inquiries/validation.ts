@@ -50,6 +50,27 @@ export function parseInquiryQuery(searchParams: SearchParams): InquiryQuery {
 
 type CreateInquiryField = keyof CreateInquiryInput;
 
+/**
+ * 登録画面の初期値（AIサポートの起票案: /inquiries/new?title=&category=&description=）を取り出す。
+ * 入力欄に表示するだけで、登録時は parseCreateInquiryInput（サーバー側）と POST /inquiries で改めて検証する。
+ * いずれの値もなければ undefined（通常の空フォーム）。不正な category は未選択、長すぎる値は上限で切る。
+ */
+export function parseInquiryPrefill(
+  searchParams: SearchParams,
+): CreateInquiryFormValues | undefined {
+  const title = firstValue(searchParams.title) ?? "";
+  const category = firstValue(searchParams.category) ?? "";
+  const description = firstValue(searchParams.description) ?? "";
+  if (!title.trim() && !category && !description.trim()) {
+    return undefined;
+  }
+  return {
+    title: truncateChars(title, TITLE_MAX_LENGTH),
+    category: isInquiryCategory(category) ? category : "",
+    description: truncateChars(description, DESCRIPTION_MAX_LENGTH),
+  };
+}
+
 /** フォームに再表示する入力値（未加工の文字列） */
 export type CreateInquiryFormValues = Record<CreateInquiryField, string>;
 
