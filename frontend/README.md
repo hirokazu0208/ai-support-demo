@@ -44,6 +44,8 @@ flowchart LR
 
 `frontend/.env.example` を `frontend/.env.local` にコピーして上書きできます（`.env.local` は Git 管理対象外）。
 
+Demo 2 Step 6A で `next.config.ts` に `output: "standalone"` を設定し、`frontend/Dockerfile` を追加しました。Docker Compose では `API_BASE_URL=http://backend:8000` を実行時に渡します（イメージには埋め込みません）。起動方法はリポジトリ直下の [README](../README.md#docker-compose-での起動) を参照してください。
+
 ## Demo 1 の目的
 
 - 要件整理 → 設計 → レビュー → 実装 → 検証 → 受入 → コミットの工程を、Step 単位で一通り回す

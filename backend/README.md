@@ -10,6 +10,7 @@
 - [Step 2：DB 層](../docs/demo2/step2-database-layer.md)
 - [Step 3：読み取り API](../docs/demo2/step3-read-api.md)
 - [Step 4：書き込み API](../docs/demo2/step4-write-api.md)
+- [Step 6A：Docker 化](../docs/demo2/step6a-docker.md)
 
 ## 使用技術
 
@@ -129,6 +130,18 @@ alembic check   # モデルと migration に差分がないことを確認
 ```
 
 autogenerate の結果はそのまま使わず、必ず内容を確認してください。Alembic 1.20.0 と SQLAlchemy 2.1 の組み合わせでは、Enum の CHECK 制約が重複して出力される既知の問題があります（[Step 2 設計記録](../docs/demo2/step2-database-layer.md) 参照）。
+
+## Docker
+
+`backend/Dockerfile` は本番を想定したイメージです（`python:3.11-slim`、root 以外のユーザー `app`、実行時の依存のみ、テスト・`.env`・`data/` は含めない）。起動はリポジトリ直下の `compose.yaml` から行います（[README](../README.md#docker-compose-での起動)）。
+
+```bash
+# Compose 環境での seed・任意コマンド（コンテナは実行後に削除）
+docker compose run --rm backend python -m app.db.seed
+docker compose run --rm backend alembic current
+```
+
+コンテナ内では `DATABASE_URL` 未設定時の既定値 `/app/data/app.db` を使い、`/app/data` に名前付き volume をマウントします。
 
 ## 環境変数
 

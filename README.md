@@ -16,7 +16,7 @@
 | Demo | 内容 | 状態 |
 |---|---|---|
 | Demo 1 | Next.js の UI と、インメモリのモックデータによる問い合わせ管理 | 完了（タグ `demo-1`） |
-| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中（Step 5：frontend と FastAPI の接続まで完了） |
+| Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 開発中（Step 6A：Docker / Docker Compose 化まで完了） |
 
 ## 構成図
 
@@ -51,3 +51,24 @@ npm run dev                   # 本番ビルドで確認する場合は npm run 
 ブラウザで http://localhost:3000 を開きます。frontend が接続する API の URL は `frontend/.env.local` の `API_BASE_URL` で変更できます（既定値 `http://localhost:8000`、[frontend/.env.example](frontend/.env.example) 参照）。
 
 DB を初期状態に戻す場合は `backend/` で `alembic downgrade base && alembic upgrade head && python -m app.db.seed` を実行します。
+
+## Docker Compose での起動
+
+本番に近い構成（frontend・backend をコンテナで実行）で確認する場合に使います。開発時は上記のホストでの起動を使ってください。Docker Desktop（Docker Compose v2）が必要です。
+
+```bash
+docker compose up -d --build                              # migrate → backend → frontend の順に起動
+docker compose run --rm backend python -m app.db.seed     # 初期データ 8 件（手動。空のときだけ投入）
+```
+
+ブラウザで http://localhost:3000 を開きます。
+
+| サービス | 内容 | ホストへの公開 |
+|---|---|---|
+| `migrate` | `alembic upgrade head` を実行して終了する | なし |
+| `backend` | FastAPI。frontend からは `http://backend:8000` で接続 | **なし**（ブラウザから直接アクセスしない） |
+| `frontend` | Next.js（standalone） | `3000` |
+
+- SQLite は名前付き volume `ai-support-desk_backend-data` に保存されます（ホストの `backend/data/app.db` とは別）。
+- `docker compose down` ではデータは残り、`docker compose down -v` で volume ごと削除されます。
+- 設計の詳細は [docs/demo2/step6a-docker.md](docs/demo2/step6a-docker.md) を参照してください。
