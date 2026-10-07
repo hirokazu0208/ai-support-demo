@@ -1,0 +1,88 @@
+# frontend / backend の Docker イメージを linux/amd64 でビルドし、GHCR に push する。
+# 手動実行、または feature/llm-agent ブランチへの push で実行する。
+#
+# Apple Silicon の Mac で linux/amd64 を buildx すると QEMU のエミュレーションになり、
+# Next.js のビルド（Collecting page data）が SIGSEGV で失敗するため、x86_64 の Ubuntu runner でネイティブにビルドする。
+#
+# push 先:
+#   ghcr.io/<owner>/ai-support-frontend:demo
+#   ghcr.io/<owner>/ai-support-backend:demo
+#
+# 使う認証情報は GitHub 標準の GITHUB_TOKEN だけ（追加の Secret は不要）。
+# Dockerfile は既存のものをそのまま使う。実行時の設定（API_BASE_URL・DATABASE_URL・OPENAI_* など）は
+# イメージに含めず、実行環境から渡す（.dockerignore で .env* を除外済み）。
+
+name: Build and push images to GHCR
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/llm-agent
+
+# GITHUB_TOKEN の権限を最小限にする（ソースの読み取りと GHCR への push のみ）
+permissions:
+  contents: read
+  packages: write
+
+# 同じ :demo タグへの push が同時に走らないようにする
+concurrency:
+  group: ghcr-build
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    name: Build and push (linux/amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # ビルドに Git の認証情報は不要なため、ワークスペースに残さない
+          persist-credentials: false
+
+      - name: Set image names
+        id: image
+        # GHCR のイメージ名は小文字のみ有効なため、リポジトリのオーナー名を小文字にする
+        run: |
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "frontend=ghcr.io/${owner}/ai-support-frontend:demo" >> "$GITHUB_OUTPUT"
+          echo "backend=ghcr.io/${owner}/ai-support-backend:demo" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.frontend }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          # 実行用のステージ（compose.yaml の backend と同じ。test ステージは含めない）
+          target: runtime
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.backend }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
