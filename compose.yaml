@@ -1,0 +1,78 @@
+# Demo 2 Step 6A: frontend / backend のコンテナ化（DB は SQLite のまま）。
+#
+#   ブラウザ → frontend（ホストの 3000 番のみ公開）→ backend:8000（Compose 内部ネットワーク）→ SQLite（名前付き volume）
+#
+# 起動順: migrate（alembic upgrade head が成功して終了）→ backend（/health/ready が healthy）→ frontend
+#
+#   docker compose up -d --build
+#   docker compose run --rm backend python -m app.db.seed   # 初期データ（手動。空のときだけ投入）
+#   docker compose down        # コンテナ削除（volume のデータは残る）
+#   docker compose down -v     # volume も削除（データが消える）
+#
+# 開発時はホストの uvicorn / npm run dev を使う（README 参照）。
+
+name: ai-support-desk
+
+services:
+  # DB スキーマを最新にして終了する一回限りのジョブ（アプリ起動時には migration しない方針）
+  migrate:
+    # backend と同じイメージを使う。ビルドは backend サービスだけが行う
+    # （両方に build を書くと、キャッシュがない初回に同名イメージのビルドが競合して失敗する）
+    image: ai-support-desk-backend:local
+    pull_policy: never
+    command: ["alembic", "upgrade", "head"]
+    volumes:
+      - backend-data:/app/data
+    restart: "no"
+
+  backend:
+    build: ./backend
+    image: ai-support-desk-backend:local
+    volumes:
+      - backend-data:/app/data
+    # ports は指定しない（ホストへ公開しない）。frontend からは http://backend:8000 で接続する
+    expose:
+      - "8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # readiness（DB 接続を含む）。slim イメージに curl はないため Python で確認する
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: ai-support-desk-frontend:local
+    environment:
+      # Next.js のサーバー側からのみ使用（ブラウザには公開しない）
+      API_BASE_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # backend を呼ばない静的なページ（/ は /inquiries へのリダイレクト）で生存確認する
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/', { redirect: 'manual' }).then((r) => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  # SQLite（/app/data/app.db）の永続化。docker compose down では削除されない
+  backend-data:

@@ -1,0 +1,16 @@
+# 依存・ビルド成果物はイメージ内で作り直す
+node_modules
+.next
+out
+*.tsbuildinfo
+next-env.d.ts
+
+# 環境変数ファイルはイメージに含めない（API_BASE_URL は実行時に渡す）
+.env*
+
+# イメージに不要なもの
+Dockerfile
+.dockerignore
+.git
+*.md
+npm-debug.log*

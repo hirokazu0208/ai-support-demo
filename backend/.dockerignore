@@ -1,0 +1,17 @@
+# 仮想環境・キャッシュ
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+
+# 環境変数ファイルはイメージに含めない（DATABASE_URL は実行時に渡す）
+.env*
+
+# 開発用の SQLite DB（data/app.db）を含めない。/app/data は Dockerfile で作成する
+data
+
+# イメージに不要なもの（テストは本番イメージに含めない）
+tests
+Dockerfile
+.dockerignore
+*.md
