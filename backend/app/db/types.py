@@ -1,8 +1,24 @@
 from datetime import UTC, datetime
+from enum import StrEnum
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, Enum
 from sqlalchemy.engine import Dialect
 from sqlalchemy.types import TypeDecorator
+
+
+def portable_enum(enum_class: type[StrEnum], name: str) -> Enum:
+    """DB のネイティブ ENUM 型ではなく VARCHAR + CHECK 制約で保存する（SQLite / PostgreSQL 共通）。
+
+    CHECK 制約名は命名規則により ck_<テーブル名>_<name> になる。
+    """
+    return Enum(
+        enum_class,
+        name=name,
+        native_enum=False,
+        create_constraint=True,
+        length=20,
+        validate_strings=True,
+    )
 
 
 def utc_now() -> datetime:

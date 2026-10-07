@@ -12,7 +12,8 @@ import app.models  # noqa: F401  全モデルを Base.metadata に登録する
 def test_upgrade_creates_inquiries_table(migrated_engine: Engine) -> None:
     inspector = inspect(migrated_engine)
 
-    assert set(inspector.get_table_names()) == {"alembic_version", "inquiries"}
+    # faqs は Demo 3 Step 1 で追加
+    assert set(inspector.get_table_names()) == {"alembic_version", "inquiries", "faqs"}
     columns = {column["name"]: column for column in inspector.get_columns("inquiries")}
     assert list(columns) == [
         "id",
@@ -72,3 +73,34 @@ def test_models_match_migrations(migrated_engine: Engine) -> None:
 def test_alembic_resolves_app_from_any_directory(alembic_config: Config) -> None:
     """alembic -c backend/alembic.ini をどこから実行しても app を import できること。"""
     assert alembic_config.get_main_option("prepend_sys_path") == str(BACKEND_DIR)
+
+
+def test_faqs_table_is_created(migrated_engine: Engine) -> None:
+    inspector = inspect(migrated_engine)
+
+    columns = {column["name"]: column for column in inspector.get_columns("faqs")}
+    assert list(columns) == [
+        "id",
+        "question",
+        "answer",
+        "category",
+        "keywords",
+        "created_at",
+        "updated_at",
+    ]
+    assert all(not column["nullable"] for column in columns.values())
+    assert inspector.get_pk_constraint("faqs")["constrained_columns"] == ["id"]
+    assert [c["name"] for c in inspector.get_check_constraints("faqs")] == [
+        "ck_faqs_category"
+    ]
+
+
+def test_downgrade_one_step_removes_only_faqs(
+    alembic_config: Config, migrated_engine: Engine
+) -> None:
+    command.downgrade(alembic_config, "-1")
+
+    assert set(inspect(migrated_engine).get_table_names()) == {
+        "alembic_version",
+        "inquiries",
+    }

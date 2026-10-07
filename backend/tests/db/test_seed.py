@@ -2,10 +2,11 @@ import pytest
 from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
-from app.db.seed import MissingTableError, seed_inquiries
+from app.db.faq_seed_data import SEED_FAQS
+from app.db.seed import MissingTableError, seed_faqs, seed_inquiries
 from app.db.seed_data import SEED_INQUIRIES
 from app.db.session import create_session_factory
-from app.models import Inquiry, InquiryStatus
+from app.models import Faq, Inquiry, InquiryStatus
 
 
 def count_inquiries(session: Session) -> int:
@@ -53,3 +54,32 @@ def test_seed_requires_migration(engine: Engine) -> None:
     with create_session_factory(engine)() as session:
         with pytest.raises(MissingTableError, match="alembic upgrade head"):
             seed_inquiries(session)
+
+
+def count_faqs(session: Session) -> int:
+    return session.scalar(select(func.count()).select_from(Faq)) or 0
+
+
+def test_seed_faqs_inserts_and_is_idempotent(db_session: Session) -> None:
+    assert seed_faqs(db_session) == len(SEED_FAQS) == 10
+    assert seed_faqs(db_session) == 0
+    assert count_faqs(db_session) == 10
+
+    first = db_session.get(Faq, 1)
+    assert first is not None
+    assert first.question == SEED_FAQS[0]["question"]
+    assert first.created_at == first.updated_at
+
+
+def test_seed_faqs_is_independent_of_inquiries(db_session: Session) -> None:
+    """問い合わせが既にある DB（Step 6B までの環境）でも FAQ は投入される。逆も同様。"""
+    assert seed_inquiries(db_session) == 8
+    assert seed_faqs(db_session) == 10
+    assert seed_inquiries(db_session) == 0
+    assert seed_faqs(db_session) == 0
+
+
+def test_seed_faqs_requires_migration(engine: Engine) -> None:
+    with create_session_factory(engine)() as session:
+        with pytest.raises(MissingTableError, match="faqs テーブル"):
+            seed_faqs(session)
