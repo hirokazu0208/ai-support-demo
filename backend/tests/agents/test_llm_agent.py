@@ -391,16 +391,21 @@ def test_llm_agent_never_writes_to_database(seeded: Session, migrated_engine: En
 
 
 def test_llm_package_has_no_write_paths_or_provider_sdk() -> None:
-    """agents/llm は openai・SQL・問い合わせの登録処理・repository の書き込みを参照しない。"""
+    """agents/llm は SQL・問い合わせの登録処理・repository の書き込みを参照しない。
+
+    openai SDK を import してよいのはアダプター（openai_client.py、Step 5-C）だけ。
+    """
     for path in (BACKEND_DIR / "app" / "agents" / "llm").glob("*.py"):
+        sdk_allowed = path.name == "openai_client.py"
         tree = ast.parse(Path(path).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
+            if isinstance(node, ast.Import) and not sdk_allowed:
                 assert not any(a.name.split(".")[0] == "openai" for a in node.names), path.name
             if isinstance(node, ast.ImportFrom):
                 module = node.module or ""
                 names = {alias.name for alias in node.names}
-                assert module.split(".")[0] != "openai", path.name
+                if not sdk_allowed:
+                    assert module.split(".")[0] != "openai", path.name
                 assert module != "app.repositories.inquiries", path.name
                 assert not (module.startswith("sqlalchemy") and module != "sqlalchemy.orm"), path.name
                 assert not names & {"create_inquiry", "update_inquiry_status", "Inquiry", "text"}, path.name

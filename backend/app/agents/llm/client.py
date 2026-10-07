@@ -68,3 +68,20 @@ class LLMResponseError(LLMError):
 
 class LLMTimeoutError(LLMError):
     """LLM Agent 全体の時間上限を超えた。"""
+
+
+class LLMProviderError(LLMError):
+    """LLM プロバイダの呼び出しに失敗した（接続・時間切れ・レート制限・認証・サーバーエラー等）。
+
+    kind: timeout / connection / rate_limit / authentication / permission / bad_request / server / api
+    メッセージ・属性には API キーやプロンプト（利用者のメッセージ）を含めない。
+    """
+
+    def __init__(
+        self, kind: str, *, status_code: int | None = None, request_id: str | None = None
+    ) -> None:
+        detail = f" (status={status_code})" if status_code is not None else ""
+        super().__init__(f"LLM provider error: {kind}{detail}")
+        self.kind = kind
+        self.status_code = status_code
+        self.request_id = request_id
