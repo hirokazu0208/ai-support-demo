@@ -26,10 +26,24 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <header className="border-b border-zinc-200 dark:border-zinc-800">
-          <div className="mx-auto max-w-5xl px-4 py-4">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
             <Link href="/inquiries" className="text-lg font-semibold">
               AI Support Desk
             </Link>
+            <nav aria-label="メインメニュー" className="flex gap-4 text-sm">
+              <Link
+                href="/inquiries"
+                className="text-zinc-600 hover:text-foreground dark:text-zinc-400"
+              >
+                問い合わせ一覧
+              </Link>
+              <Link
+                href="/chat"
+                className="text-zinc-600 hover:text-foreground dark:text-zinc-400"
+              >
+                AIサポート
+              </Link>
+            </nav>
           </div>
         </header>
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
