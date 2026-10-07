@@ -36,6 +36,8 @@ flowchart LR
 | `src/app/chat/actions.ts` | Server Action。メッセージを検証して Agent API を呼び、会話に追加する（会話は画面の状態にのみ保持し、保存しない） |
 | `src/components/chat/ChatPanel.tsx` | 会話・入力欄・送信中表示・エラー表示（Client Component、`useActionState`） |
 | `src/components/chat/AgentMessage.tsx`、`FaqCard.tsx` | Agent の回答、参照した FAQ（質問・回答・カテゴリ・一致度）、使用した Tool、問い合わせ登録への導線 |
+| `src/components/chat/InquiryDraftCard.tsx` | Agent が作成した問い合わせ起票案（タイトル・カテゴリ・内容）と「内容を確認して登録へ」（`/inquiries/new?title=&category=&description=` へ引き継ぐ。ここでは登録しない） |
+| `src/app/inquiries/new/page.tsx`（変更） | クエリに起票案がある場合のみフォームの初期値にする（`parseInquiryPrefill`。不正なカテゴリは未選択、長すぎる値は上限で切る）。登録は既存の「登録する」→ Server Action → `POST /inquiries` のみ |
 | `src/lib/agent/types.ts`、`repository.ts` | API の型（`AgentAction`・`AgentFaq`・`AgentToolCall`・`AgentChatResponse`）と、応答を検証する server-only のアクセス層 |
 | `src/lib/api/http.ts` | FastAPI を呼ぶ HTTP の共通処理（`API_BASE_URL`・タイムアウト・`no-store`・エラー処理）。問い合わせ・Agent の repository が共有する |
 

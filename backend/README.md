@@ -2,7 +2,7 @@
 
 問い合わせ管理アプリの REST API です（Python / FastAPI）。Demo 2 で段階的に構築しています。
 
-現在の到達点は **Demo 3 Step 2（Agent API）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更、FAQ 検索、AI Agent との対話（`POST /agent/chat`。Agent が FAQ 検索 Tool を呼んで回答する）と、ヘルスチェック（`/health`・`/health/ready`）を提供し、frontend（Next.js）のサーバー側から呼び出されます。DB は `DATABASE_URL` で SQLite / PostgreSQL を切り替えます。
+現在の到達点は **Demo 3 Step 4（問い合わせ起票案 Tool）** です。問い合わせの一覧・詳細の取得、登録、ステータス変更、FAQ 検索、AI Agent との対話（`POST /agent/chat`。Agent が FAQ 検索 Tool と問い合わせ起票案 Tool を選んで呼ぶ。起票案は DB に保存せず、登録は人が既存の登録画面から行う）と、ヘルスチェック（`/health`・`/health/ready`）を提供し、frontend（Next.js）のサーバー側から呼び出されます。DB は `DATABASE_URL` で SQLite / PostgreSQL を切り替えます。
 
 設計の詳細は以下を参照してください。
 
@@ -14,6 +14,7 @@
 - [Step 6B：PostgreSQL 化](../docs/demo2/step6b-postgresql.md)
 - [Demo 3 Step 1：FAQ 検索](../docs/demo3/step1-faq-search.md)
 - [Demo 3 Step 2：Agent API](../docs/demo3/step2-agent-api.md)
+- [Demo 3 Step 4：問い合わせ起票案 Tool](../docs/demo3/step4-inquiry-draft.md)
 
 ## 使用技術
 
@@ -45,9 +46,10 @@ backend/
 │   │   └── faq_seed_data.py # FAQ 10 件
 │   ├── agents/
 │   │   ├── base.py        # Agent プロトコル・AgentAction・AgentReply・ToolCall
-│   │   └── rule_based.py  # RuleBasedAgent（FAQ 検索 Tool を呼ぶ。外部 LLM なし）
+│   │   └── rule_based.py  # RuleBasedAgent（どの Tool を呼ぶかを決める。外部 LLM なし）
 │   ├── tools/
-│   │   └── faq_search.py  # FAQ 検索 Tool（repository の search_faqs() を呼ぶ薄い層）
+│   │   ├── faq_search.py  # FAQ 検索 Tool（repository の search_faqs() を呼ぶ薄い層）
+│   │   └── draft_inquiry.py # 問い合わせ起票案 Tool（登録依頼の判定・カテゴリ分類。DB には書かない）
 │   ├── models/
 │   │   ├── inquiry.py     # Inquiry モデル・InquiryCategory・InquiryStatus
 │   │   └── faq.py         # Faq モデル（category は InquiryCategory を再利用）
@@ -115,7 +117,7 @@ uvicorn app.main:app --reload --port 8000
 | `POST /inquiries` | 登録。本文は `title`（前後の空白を除いて 1〜100 文字）、`description`（同 1〜2000 文字）、`category`。status は `OPEN` 固定、`createdAt` と `updatedAt` は同じ時刻。成功時は 201 と `Location: /inquiries/{id}` |
 | `PATCH /inquiries/{id}/status` | ステータス変更。本文は `status` のみ。変更した場合だけ `updatedAt` を更新し、同じ status なら何も更新せずに 200 を返す。存在しない id は 404 |
 | `GET /faqs?q=&limit=5` | FAQ 検索。キーワード + 部分一致のスコア順（同点は id 順）。`q` 未指定は id 順。`limit` は 1〜20、`q` は最大 200 文字。応答は `id`・`question`・`answer`・`category`・`score` |
-| `POST /agent/chat` | AI Agent との対話。本文は `{"message": "..."}`（前後の空白を除いて 1〜1000 文字、未定義の項目は 422）。応答は `message`・`action`（`FAQ_ANSWER` / `INQUIRY_SUGGESTED`）・`matchedFaqs`・`toolCalls`。会話の状態は保持しない |
+| `POST /agent/chat` | AI Agent との対話。本文は `{"message": "..."}`（前後の空白を除いて 1〜1000 文字、未定義の項目は 422）。応答は `message`・`action`（`FAQ_ANSWER` / `INQUIRY_SUGGESTED` / `INQUIRY_DRAFTED`）・`matchedFaqs`・`toolCalls`・`inquiryDraft`（起票案。`InquiryCreate` と同じ制約、`INQUIRY_DRAFTED` 以外は `null`）。会話の状態は保持せず、問い合わせを登録しない |
 
 レスポンスの JSON は camelCase（`createdAt`・`updatedAt`）、日時は UTC の ISO 8601（例：`2026-09-28T00:15:00Z`）です。不正な `status`・`category`、定義していないクエリパラメータ・本文の項目（`id`・`status`・`createdAt` などのサーバーが決める項目を含む）は 422 になります。
 

@@ -17,7 +17,7 @@
 |---|---|---|
 | Demo 1 | Next.js の UI と、インメモリのモックデータによる問い合わせ管理 | 完了（タグ `demo-1`） |
 | Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 完了（Step 6B：Docker Compose での PostgreSQL 化まで） |
-| Demo 3 | AI 問い合わせ支援 Agent（FAQ 検索 Tool・問い合わせ起票 Tool・チャット UI） | 開発中（Step 3：チャット UI（`/chat`）と Agent API の接続まで完了） |
+| Demo 3 | AI 問い合わせ支援 Agent（FAQ 検索 Tool・問い合わせ起票 Tool・チャット UI） | 開発中（Step 4：問い合わせ起票案 Tool と Human-in-the-loop の登録導線まで完了） |
 
 ## 構成図
 
