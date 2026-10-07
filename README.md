@@ -1,14 +1,45 @@
 # AI Support Desk
 
-社内ヘルプデスク担当者向けの問い合わせ管理 Web アプリです。
-人間が要件定義・設計承認・レビュー・受入判断を行い、ChatGPT と Claude Code を工程ごとに使い分けた AI 支援開発で、段階的に開発しています。
+**Next.js / FastAPI / PostgreSQL で作った社内ヘルプデスク向けの問い合わせ管理システムに、Tool を利用する AI Agent（AIサポート）を追加したデモです。**
+
+利用者がチャットで困りごとを入力すると、Agent が **FAQ 検索 Tool** で回答し、FAQ で解決しない場合や登録を頼まれた場合は **問い合わせ起票案 Tool** で起票案を作ります。起票案は自動登録せず、人が既存の登録画面で確認・修正してから登録します（Human-in-the-loop）。
+
+```
+Browser（/chat）
+  ↓  Server Action（ブラウザの通信先は Next.js のみ）
+Next.js（frontend）
+  ↓  HTTP（Next.js のサーバー側から呼び出し）
+FastAPI（backend）  POST /agent/chat
+  ↓
+Agent（RuleBasedAgent）
+  ├─ search_faqs    … FAQ 検索 Tool
+  └─ draft_inquiry  … 問い合わせ起票案 Tool（DB には書き込まない）
+  ↓
+PostgreSQL（faqs / inquiries）
+
+起票案 → 人が既存の登録画面（/inquiries/new）で確認・修正 → 既存の POST /inquiries で登録
+```
+
+- **面談用デモ手順・想定 Q&A**: [docs/demo3/demo-script.md](docs/demo3/demo-script.md)
+- **設計記録（Step ごと）**: [docs/README.md](docs/README.md)
+- 人間が要件定義・設計承認・レビュー・受入判断を行い、ChatGPT と Claude Code を工程ごとに使い分けた AI 支援開発で、段階的に開発しています（[開発プロセス](#開発プロセスai-駆動開発)）。
+
+## AI Agent について（現在の実装）
+
+| 項目 | 内容 |
+|---|---|
+| Agent | **RuleBasedAgent**（ルールベース）。外部 LLM・API キーは使っていません。どの Tool を呼ぶかを決まった手順で判断し、Tool の結果から回答を組み立てます |
+| Tool | `search_faqs`（FAQ をキーワード + 部分一致のスコアで検索）、`draft_inquiry`（メッセージから起票案のタイトル・カテゴリ・内容を作成。登録依頼の言い回しを判定） |
+| 応答 | `POST /agent/chat` → `message`・`action`（`FAQ_ANSWER` / `INQUIRY_DRAFTED` / `INQUIRY_SUGGESTED`）・`matchedFaqs`・`toolCalls`（呼び出した Tool）・`inquiryDraft` |
+| 安全性 | Agent は問い合わせを DB に登録しません。登録は人の操作 → 既存の `POST /inquiries` のみ（テストで INSERT が発生しないことを確認） |
+| LLM への拡張 | LLM に依存せず、先に Tool の契約（名前・説明・引数の JSON Schema）と業務フローを固めています。Agent は共通インターフェース（`respond(session, message)`）の実装で、`get_agent()` で差し替えられる構造です。LLM Agent の実装（Demo 3 Step 5）は未着手です |
 
 ## 構成
 
 | ディレクトリ | 内容 |
 |---|---|
 | [`frontend/`](frontend/) | Next.js 16（App Router）による画面。FastAPI をサーバー側から呼び出す。詳細は [frontend/README.md](frontend/README.md) |
-| [`backend/`](backend/) | Python / FastAPI による REST API（Demo 2 で構築中）。詳細は [backend/README.md](backend/README.md) |
+| [`backend/`](backend/) | Python / FastAPI による REST API と AI Agent（`agents/`・`tools/`）。詳細は [backend/README.md](backend/README.md) |
 | [`docs/`](docs/) | 承認済みの設計・技術判断・検証結果の記録。方針と目次は [docs/README.md](docs/README.md) |
 
 ## Demo の段階
@@ -17,7 +48,7 @@
 |---|---|---|
 | Demo 1 | Next.js の UI と、インメモリのモックデータによる問い合わせ管理 | 完了（タグ `demo-1`） |
 | Demo 2 | FastAPI + SQLAlchemy + SQLite による REST API とデータ永続化 | 完了（Step 6B：Docker Compose での PostgreSQL 化まで） |
-| Demo 3 | AI 問い合わせ支援 Agent（FAQ 検索 Tool・問い合わせ起票 Tool・チャット UI） | 開発中（Step 4：問い合わせ起票案 Tool と Human-in-the-loop の登録導線まで完了） |
+| Demo 3 | AI 問い合わせ支援 Agent（FAQ 検索 Tool・問い合わせ起票 Tool・チャット UI） | Step 1〜4・6 完了（Step 5：外部 LLM 接続は保留） |
 
 ## 構成図
 
@@ -40,7 +71,7 @@ cd backend
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 alembic upgrade head          # DB（backend/data/app.db）を作成
-python -m app.db.seed         # 初期データ 8 件（空のときだけ投入）
+python -m app.db.seed         # 初期データ（問い合わせ 8 件・FAQ 10 件。空のときだけ投入）
 uvicorn app.main:app --port 8000
 
 # 2. frontend（http://localhost:3000）
@@ -60,10 +91,10 @@ DB を初期状態に戻す場合は `backend/` で `alembic downgrade base && a
 ```bash
 cp .env.example .env                                      # 初回のみ。POSTGRES_PASSWORD を設定（openssl rand -hex 24 など）
 docker compose up -d --build                              # db → migrate → backend → frontend の順に起動
-docker compose run --rm backend python -m app.db.seed     # 初期データ 8 件（手動。空のときだけ投入）
+docker compose run --rm backend python -m app.db.seed     # 初期データ（問い合わせ 8 件・FAQ 10 件。手動。空のときだけ投入）
 ```
 
-ブラウザで http://localhost:3000 を開きます。
+ブラウザで http://localhost:3000 を開きます（AIサポートは http://localhost:3000/chat）。
 
 | サービス | 内容 | ホストへの公開 |
 |---|---|---|
@@ -76,3 +107,30 @@ docker compose run --rm backend python -m app.db.seed     # 初期データ 8 �
 - `docker compose down` ではデータは残り、`docker compose down -v` で volume ごと削除されます。
 - PostgreSQL でテストを実行する場合: `docker compose --profile test run --rm backend-test`（使い捨ての `db-test` を使用。開発用の `db` には触れません）
 - 設計の詳細は [docs/demo2/step6a-docker.md](docs/demo2/step6a-docker.md)・[docs/demo2/step6b-postgresql.md](docs/demo2/step6b-postgresql.md) を参照してください。
+
+## 開発プロセス（AI 駆動開発）
+
+各 Step を次の流れで進めました。人間が設計・レビュー・受入判断を担当し、Claude Code（coding agent）を実装作業に利用しています。
+
+```
+要件整理（人間 + ChatGPT）
+  ↓
+設計案の作成（Claude Code が既存コード・同梱ドキュメントを調査して提示）
+  ↓
+人間による設計確認・判断（判断事項を選択して承認）
+  ↓
+Claude Code へ実装指示
+  ↓
+AI による実装（Claude Code）
+  ↓
+自動テスト・検証（pytest を SQLite / PostgreSQL の両方で実行、tsc・lint・build、Docker Compose + ヘッドレス Chrome による E2E）
+  ↓
+不具合の原因調査・修正 → 回帰テスト
+  ↓
+人間による差分・結果確認（受入判断）
+  ↓
+Git commit（人間が手動で実施）
+```
+
+- 各 Step の設計判断・検証結果・見つかった問題と対応は [docs/](docs/README.md) に記録しています（会話ログではなく、人間が承認した内容）。
+- 品質の担保: backend は pytest 209 件（SQLite / PostgreSQL 両方）、Alembic のモデル差分チェック、frontend は型チェック・lint・本番ビルド、Docker Compose 上でのブラウザ E2E（Human-in-the-loop の登録で DB 件数が人の操作時のみ増えることを含む）。
