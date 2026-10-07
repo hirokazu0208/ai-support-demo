@@ -4,6 +4,9 @@
 
 人間が要件定義・設計承認・レビュー・受入判断を行い、ChatGPT と Claude Code を工程ごとに使い分けた **AI 支援開発** のプロセスを、小規模なアプリで一通り実践した面談用デモです。
 
+> **Demo 2 Step 5 で、データの取得元をモックデータから FastAPI（[backend/](../backend/)）に置き換えました。** 現在の構成・起動方法は [Demo 2 での変更](#demo-2-での変更fastapi-との接続) と [ローカルでの起動方法](#ローカルでの起動方法) を参照してください。それ以外の節は Demo 1 時点の記録です（Demo 1 のコードはタグ `demo-1` に残っています）。
+
+- [Demo 2 での変更（FastAPI との接続）](#demo-2-での変更fastapi-との接続)
 - [Demo 1 の目的](#demo-1-の目的)
 - [実装した機能](#実装した機能)
 - [使用技術](#使用技術)
@@ -14,6 +17,32 @@
 - [ローカルでの起動方法](#ローカルでの起動方法)
 - [Demo 1 の制約](#demo-1-の制約)
 - [Demo 2 以降の拡張案](#demo-2-以降の拡張案)
+
+## Demo 2 での変更（FastAPI との接続）
+
+設計の詳細は [docs/demo2/step5-frontend-api-integration.md](../docs/demo2/step5-frontend-api-integration.md) を参照してください。
+
+```mermaid
+flowchart LR
+  Browser["ブラウザ"] -->|HTML / RSC / Server Action| Next["Next.js サーバー<br/>（Server Component・Server Actions）"]
+  Next --> Repo["repository.ts<br/>（server-only）"]
+  Repo -->|"HTTP（API_BASE_URL）"| API["FastAPI"]
+  API --> DB[("SQLite")]
+```
+
+- `src/lib/inquiries/repository.ts` の中身を `fetch` による REST API 呼び出しに置き換えました。関数のシグネチャは変えていないため、ページ・コンポーネント・Server Actions は変更していません。`mock-data.ts` は削除しました（初期データは backend の seed が引き継いでいます）。
+- API は Next.js のサーバー側からのみ呼び出します（`import "server-only"`、環境変数に `NEXT_PUBLIC_` を付けない）。ブラウザから FastAPI へは直接通信しないため、CORS の設定は不要です。
+- API の id（integer）は repository で `String(id)` に変換します。`updatedAt` は応答の検証にのみ使い、画面の型には含めていません。
+- 不正な id（`0`・`01`・数字以外・2147483647 超）は API を呼ばずに「見つかりません」として扱います。API の 404 も同じ扱いです。
+- API の停止・5xx・不正な応答は例外とし、`src/app/error.tsx`（「データを取得できませんでした」＋再試行）を表示します。API のエラー内容は画面に表示しません。
+- `fetch` は `cache: "no-store"` を明示し、常に最新のデータを取得します。登録・ステータス変更後の画面更新は、従来どおり Server Actions の `revalidatePath` / `redirect` で行います。
+- 検索キーワードは 200 文字までとしました（API の上限に合わせ、超過分は切り詰め）。
+
+| 環境変数 | 既定値 | 説明 |
+|---|---|---|
+| `API_BASE_URL` | `http://localhost:8000` | FastAPI の URL。サーバー側のみで使用。未設定・空の場合は既定値。末尾の `/` は任意。不正な値の場合はエラー画面になり、理由はサーバーログに出力されます |
+
+`frontend/.env.example` を `frontend/.env.local` にコピーして上書きできます（`.env.local` は Git 管理対象外）。
 
 ## Demo 1 の目的
 
@@ -159,14 +188,15 @@ Step 5 では、承認済みの設計（ID を Server Action に `.bind` で渡�
 
 ## ローカルでの起動方法
 
-Node.js 20.9 以上が必要です。
+Node.js 20.9 以上が必要です。Demo 2 以降は FastAPI（backend）を先に起動してください（手順は [backend/README.md](../backend/README.md)、両方を起動する手順はリポジトリ直下の [README](../README.md)）。
 
 ```bash
+cp .env.example .env.local   # 任意（API_BASE_URL を変更する場合）
 npm install
 npm run dev
 ```
 
-ブラウザで http://localhost:3000 を開くと、問い合わせ一覧（`/inquiries`）が表示されます。
+ブラウザで http://localhost:3000 を開くと、問い合わせ一覧（`/inquiries`）が表示されます。backend が起動していない場合はエラー画面になります。
 
 本番ビルドで確認する場合：
 
@@ -177,11 +207,11 @@ npm start
 
 ## Demo 1 の制約
 
-- データはサーバープロセスのメモリ上に保持しており、**サーバーを再起動すると初期データ（8 件）に戻ります。**
+- データはサーバープロセスのメモリ上に保持しており、**サーバーを再起動すると初期データ（8 件）に戻ります。**（Demo 2 で解消：FastAPI 経由で SQLite に永続化）
 - 認証・認可はありません。誰でも問い合わせの登録・ステータス変更ができます。
 - ステータスの遷移に制約はなく、同時更新時は後から実行した更新が反映されます。
 - 詳細画面から一覧へ戻るリンクでは、検索条件は保持されません。
-- 自動テストは未整備です。
+- 自動テストは未整備です。（Demo 2 時点でも frontend の自動テストは未整備。backend は pytest あり）
 
 ## Demo 2 以降の拡張案
 
