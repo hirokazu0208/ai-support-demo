@@ -75,8 +75,15 @@ def test_aware_datetime_is_stored_as_utc(db_session: Session) -> None:
     db_session.add(inquiry)
     db_session.commit()
 
-    stored = db_session.scalar(text("SELECT created_at FROM inquiries"))
-    assert stored == "2026-10-06 00:00:00.000000"
+    # DB に保存された値そのものが UTC の時刻であること（SQLite は文字列、PostgreSQL は timestamptz）
+    if db_session.get_bind().dialect.name == "postgresql":
+        stored_sql = (
+            "SELECT to_char(created_at AT TIME ZONE 'UTC', "
+            "'YYYY-MM-DD HH24:MI:SS.US') FROM inquiries"
+        )
+    else:
+        stored_sql = "SELECT created_at FROM inquiries"
+    assert db_session.scalar(text(stored_sql)) == "2026-10-06 00:00:00.000000"
 
     db_session.expire_all()
     saved = db_session.get(Inquiry, inquiry.id)
@@ -118,7 +125,8 @@ def test_valid_raw_insert_is_accepted(db_session: Session) -> None:
 
 @pytest.mark.parametrize("column", ["title", "description", "category"])
 def test_required_columns_are_not_null(db_session: Session, column: str) -> None:
-    with pytest.raises(IntegrityError, match="NOT NULL"):
+    # SQLite: "NOT NULL constraint failed" / PostgreSQL: "violates not-null constraint"
+    with pytest.raises(IntegrityError, match="(?i)not[ -]null"):
         insert_raw(db_session, **{column: None})  # type: ignore[arg-type]
 
 

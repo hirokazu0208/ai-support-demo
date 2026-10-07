@@ -10,8 +10,8 @@ __pycache__
 # 開発用の SQLite DB（data/app.db）を含めない。/app/data は Dockerfile で作成する
 data
 
-# イメージに不要なもの（テストは本番イメージに含めない）
-tests
+# イメージに不要なもの
+# tests は Dockerfile の test ステージでのみコピーする（runtime ステージには含めない）
 Dockerfile
 .dockerignore
 *.md
