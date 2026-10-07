@@ -17,12 +17,6 @@ def read_faqs(
 ) -> list[FaqResponse]:
     """FAQ を検索する（スコアの高い順。q 未指定の場合は id 順）。"""
     return [
-        FaqResponse(
-            id=match.faq.id,
-            question=match.faq.question,
-            answer=match.faq.answer,
-            category=match.faq.category,
-            score=match.score,
-        )
+        FaqResponse.from_match(match)
         for match in search_faqs(db, params.q, limit=params.limit)
     ]

@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from app.models import InquiryCategory
+from app.repositories.faqs import FaqMatch
 
 FAQ_SEARCH_LIMIT_MAX = 20
 
@@ -16,6 +17,17 @@ class FaqResponse(BaseModel):
     answer: str
     category: InquiryCategory
     score: int
+
+    @classmethod
+    def from_match(cls, match: FaqMatch) -> "FaqResponse":
+        """検索結果（repository の FaqMatch）を API の応答に変換する。"""
+        return cls(
+            id=match.faq.id,
+            question=match.faq.question,
+            answer=match.faq.answer,
+            category=match.faq.category,
+            score=match.score,
+        )
 
 
 class FaqSearchParams(BaseModel):
